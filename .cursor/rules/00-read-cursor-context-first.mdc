@@ -1,0 +1,27 @@
+---
+description: Mandatory — re-read .cursor AGENTS and follow read list every turn (not only session start)
+alwaysApply: true
+---
+
+# Read `.cursor/` context **every turn**, not only at session start
+
+**Why this exists:** Cursor injects these rules into context, but it does **not** automatically re-fetch `.cursor/AGENTS.md` or other files on each message. After **context compaction** or long threads, prior “I already read AGENTS” may be **false**. Treat **each new user message** as a **new turn** that resets this obligation unless you have already satisfied it **after that message** with a fresh **Read**.
+
+## A. Binding contract
+
+1. **Every turn** where you will use **any** tool (`Read`, `Shell`, `Grep`, `Write`, `StrReplace`, `SemanticSearch`, `Task`, MCP, browser tools, etc.) or give a **substantive** answer about the repo:
+   - **First**, use the **Read** tool on **`.cursor/AGENTS.md`** (unless you literally just Read it **after** the latest user message in this turn).
+2. Then **Read** the rest of the files listed in **`AGENTS.md` → “Before every turn, read these files”** (typically `USER.md`, `STATE.md`, `SKILLS.md`, `TOOLS.md`, **`.cursor/memory/MEMORY.md`**, and all of `memory/blockers/` when relevant).
+3. **All** **`alwaysApply: true`** rules under **`.cursor/rules/*.mdc`** remain binding; if unsure what they say, **Read** the relevant `.mdc` from disk.
+
+## B. “Same turn” rule
+
+- **Session start** is **not** enough. **Each** new user message that expects work = re-apply section **A** unless you already did **A.1–A.2** after that message.
+
+## C. End of turn
+
+If **`AGENTS.md`** requires memory/state updates after work, do them **before** finishing the reply.
+
+## D. Narrow exception
+
+A one-line acknowledgment with **no** tools is allowed **only** for purely conversational messages with **no** workspace or project implication. If **anything** might touch code, commands, files, or project facts → perform **A** first.

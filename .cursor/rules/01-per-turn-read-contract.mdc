@@ -1,0 +1,6 @@
+---
+description: Short repeat — Read AGENTS.md after each new user message before other tools
+alwaysApply: true
+---
+
+**Per-turn reminder (duplicate of `00-read-cursor-context-first.mdc` on purpose):** After **each** new user message, before **Shell / Grep / Write / StrReplace / SemanticSearch / Task / MCP** (and before other **Read** calls except re-reading `AGENTS.md`), **Read** **`.cursor/AGENTS.md`**, then the other files in its read list. Session-start context is **not** a substitute.

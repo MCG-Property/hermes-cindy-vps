@@ -1,0 +1,48 @@
+---
+description: Core always-on operating context for this workspace
+alwaysApply: true
+---
+
+**Each turn:** Follow **`.cursor/rules/00-read-cursor-context-first.mdc`**: use the **Read** tool on **`.cursor/AGENTS.md`** (then the rest of the read list) after **each** new user message before other tools—session start alone does not satisfy this.
+
+Before acting on **each** turn, treat the following files as the canonical operating context for this workspace if they exist:
+
+- `.cursor/AGENTS.md`
+- `.cursor/USER.md`
+- `.cursor/STATE.md`
+- `.cursor/SKILLS.md`
+- `.cursor/TOOLS.md`
+- `.cursor/memory/MEMORY.md`
+- every active file in `.cursor/memory/blockers/`
+
+Role boundaries are strict:
+
+- `AGENTS.md` = global workflow and behavior rules
+- `USER.md` = durable user preferences, directives, and standing instructions
+- `STATE.md` = live active-state log for current work
+- `SKILLS.md` = high-level skill registry; detailed procedures in `.cursor/skills/<skill-id>/SKILL.md`
+- `TOOLS.md` = registry of available tools, capabilities, and resources
+- **`.cursor/memory/MEMORY.md`** = primary working memory (directives + concise index); dated ops under **`.cursor/memory/memories/YYYY-MM-DD-hermes-continuation.md`**
+- **`.cursor/memory/memories/`** = timestamped detailed project memory files
+- **`.cursor/memory/blockers/`** = unresolved issue files by domain
+- **`.cursor/memory/blockers-fixed/`** = resolved blocker archives
+- **`.cursor/memory/runbooks/`** = exact domain-specific how-it-was-done records
+
+Do not blur these boundaries.
+
+When the user gives a new persistent instruction:
+
+- workflow or execution rule -> update the canonical behavior files
+- user preference or standing directive -> `USER.md`
+- live current task state -> `STATE.md`
+- durable memory index entry -> **`.cursor/memory/MEMORY.md`**
+- stable repeatable procedure -> `.cursor/skills/<skill-id>/` + `.cursor/SKILLS.md` registry when appropriate
+- tool/capability listing change -> `TOOLS.md`
+
+Favor continuity over re-discovery.
+
+Favor explicit structure over implied memory.
+
+Do not let important operating instructions remain buried only in chat history.
+
+---

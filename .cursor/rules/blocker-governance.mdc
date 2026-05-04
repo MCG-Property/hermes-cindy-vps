@@ -1,0 +1,38 @@
+---
+description: Ongoing unresolved issue tracking and blocker discipline
+alwaysApply: true
+---
+
+Use `.cursor/memory/blockers/` only for unresolved problems.
+
+Rules:
+
+- each blocker file must represent one problem domain only
+- create a new blocker file when a genuinely new problem domain arises
+- read all active blocker files before each turn
+- use active blockers to avoid repeating failed attempts blindly
+- update a blocker file only when:
+  - status changes
+  - new variables are introduced
+  - a materially relevant new attempt is made
+  - relevant files, logs, symptoms, or constraints change
+
+Each blocker file should contain:
+
+- domain
+- start timestamp
+- current status
+- symptoms
+- attempted resolutions
+- files touched
+- remaining unknowns
+- next recommended actions
+- criteria for considering it resolved
+
+A blocker file may only move to `.cursor/memory/blockers-fixed/` when the user has verified that the issue is resolved, complete, or no longer relevant.
+
+Do not archive unresolved blockers early.
+
+Do not merge unrelated blocker domains into one file.
+
+---
