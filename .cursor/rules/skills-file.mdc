@@ -1,0 +1,37 @@
+---
+description: Activate and maintain SKILLS.md and .cursor/skills/ as the canonical repeatable-procedures system
+alwaysApply: true
+---
+
+Treat **`.cursor/SKILLS.md`** as the **high-level registry** (index + rules) for durable, repeatable, multi-step procedures.
+
+Treat **`.cursor/skills/<skill-id>/SKILL.md`** as the **full procedure** for each skill, with optional **`assets/`** and **`references/`** subfolders (same layout pattern as **`.agents/skills/`**).
+
+Use this system for:
+
+- stable operational procedures
+- repeated workflows
+- standard terminal procedures
+- plugin usage patterns
+- integration routines
+- recurring online resource workflows
+- reusable multi-step processes
+
+Do not use it for:
+
+- one-off historical fixes (use `memory/runbooks/`)
+- blocker tracking
+- temporary notes
+- live state
+- user preferences
+
+Update when:
+
+- a new long-standing repeatable procedure is established (add folder + registry row in `SKILLS.md`)
+- a multi-step process is stable enough for reuse
+- a toolchain or integration workflow becomes a reusable standard
+- the user requests an addition, change, or removal
+
+If a procedure is still too experimental or not yet outcome-stable, keep the history in the relevant runbook instead of promoting it into `.cursor/skills/`.
+
+---

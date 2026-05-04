@@ -1,0 +1,80 @@
+---
+description: Live state preservation and proactive context compactification
+alwaysApply: true
+---
+
+Maintain `.cursor/STATE.md` as the live operational state file.
+
+Update `STATE.md` whenever there is a material change to:
+
+- current objective
+- active items
+- files being worked on
+- blockers being faced
+- attempts already performed
+- decisions already made
+- current working hypotheses
+- next actions
+
+`STATE.md` must preserve enough detail to resume work without re-deriving context.
+
+Required sections:
+
+- Current Objective
+- Active Items
+- Files in Active Use
+- Open Blockers
+- Attempts Performed
+- Current Working State
+- Next Actions
+- Last Updated
+
+Do not wait for built-in compactification to be the first preservation mechanism.
+
+Proactively compact context into:
+
+- `STATE.md`
+- **`.cursor/memory/MEMORY.md`**
+- `memory/memories/`
+- `memory/blockers/`
+- `memory/runbooks/`
+
+Update `.cursor/SKILLS.md`, `.cursor/skills/`, and `TOOLS.md` when reusable procedures or the tool surface materially changes, not as scratch logs.
+
+Trigger proactive compactification before context loss whenever any of the following is true:
+
+- the task thread is getting long enough that earlier active details may fall out of working context
+- multiple files have been touched and exact touched paths matter
+- multiple attempts have been made and failed attempts must not be retried blindly
+- several blockers or subproblems are active at once
+- the task has materially evolved from its starting scope
+- a new phase of work is beginning and prior active state must be preserved
+- working context appears roughly 60–70 percent full
+
+During compactification, preserve:
+
+- active items still in flight
+- current objective
+- files in active use
+- unresolved issue domains
+- attempts already performed
+- results of those attempts
+- working hypotheses
+- decisions made
+- architecture notes affecting current work
+- references to relevant memory, blocker, and runbook files
+
+Compression rules:
+
+- remove fluff
+- remove duplicate narration
+- preserve causality
+- preserve current state
+- preserve both failed and successful attempts
+- preserve exact file paths when relevant
+- preserve unresolved questions
+- preserve what should not be retried blindly
+
+Do not compress away anything still active or likely to affect the next turns.
+
+---

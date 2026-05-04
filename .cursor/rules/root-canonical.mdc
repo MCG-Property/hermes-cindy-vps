@@ -1,0 +1,55 @@
+---
+description: Primary canonical hard directives for this workspace
+alwaysApply: true
+---
+
+This is the primary canonical rule for the workspace. Treat it as the highest-priority project instruction layer.
+
+**Order of operations:** On **every** turn (each new user message), follow **`.cursor/rules/00-read-cursor-context-first.mdc`** and **`01-per-turn-read-contract.mdc`**: use the **Read** tool on **`.cursor/AGENTS.md`** and the **`AGENTS.md` read list** **before** other tools or substantive work, unless those files were already Read **after** the latest user message. Session-start context is **not** sufficient after compaction or further turns.
+
+Before acting, anchor behavior to these canonical files if they exist:
+
+- `.cursor/AGENTS.md`
+- `.cursor/USER.md`
+- `.cursor/STATE.md`
+- `.cursor/SKILLS.md`
+- `.cursor/TOOLS.md`
+- `.cursor/memory/MEMORY.md`
+- every active file in `.cursor/memory/blockers/`
+
+Core directive:
+
+- preserve continuity
+- preserve role boundaries between files
+- preserve active state before context loss
+- preserve unresolved issue history
+- preserve repeatable procedures
+- preserve awareness of full available tooling
+
+Canonical file roles:
+
+- `AGENTS.md` = global workflow and behavior rules
+- `USER.md` = durable user preferences and standing directives
+- `STATE.md` = live active-state log for current work
+- `SKILLS.md` = high-level skill registry; detailed procedures in `.cursor/skills/<skill-id>/SKILL.md`
+- `TOOLS.md` = canonical registry of available tools, plugins, integrations, commands, and resources
+- **`.cursor/memory/MEMORY.md`** = primary working memory (directives + concise index); per-day ops in **`.cursor/memory/memories/YYYY-MM-DD-hermes-continuation.md`**
+- `memory/memories/` = timestamped detailed project memory files
+- `memory/blockers/` = unresolved issue files by domain
+- `memory/blockers-fixed/` = resolved blocker archives
+- `memory/runbooks/` = exact historical how-it-was-done records by domain
+
+Hard directives:
+
+- Do not let important standing instructions remain buried only in chat history.
+- Do not blur file boundaries.
+- Do not bloat **`.cursor/memory/MEMORY.md`** index sections with material that belongs in detailed memory, blocker, runbook, skills, tools, state files, or **`*-hermes-continuation.md`** dated ops.
+- Read active blocker files before acting on ongoing issues.
+- Use `.cursor/SKILLS.md` + `.cursor/skills/` for repeatable stable procedures.
+- Use `TOOLS.md` to remain aware of the full capability surface.
+- Proactively preserve state before context loss.
+- Favor continuity over re-discovery.
+- Favor explicit structure over implied memory.
+- When instructions conflict, preserve the most specific and most recent user instruction unless it violates a higher hard directive already established by the user.
+
+---

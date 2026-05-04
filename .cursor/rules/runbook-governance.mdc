@@ -1,0 +1,41 @@
+---
+description: Exact resolution logging and repeatable domain runbooks
+alwaysApply: true
+---
+
+Use `.cursor/memory/runbooks/` for exact domain-specific resolution records.
+
+A runbook must be created or updated whenever you document how something was solved or executed, especially when this includes:
+
+- exact files touched
+- exact changes made
+- exact paths involved
+- specific commands or procedures used
+- what worked and why
+
+Runbook rules:
+
+- keep one runbook per problem or process domain
+- store sub-domains as sections inside the same domain runbook
+- create a new runbook only when a genuinely new domain arises
+- update the existing domain runbook rather than creating duplicates
+
+Each runbook should include:
+
+- domain
+- purpose
+- exact paths touched
+- exact files created, edited, moved, or deleted
+- exact procedure followed
+- exact result
+- validation status
+- caveats
+- related blocker file paths if relevant
+
+If a solution is one-off but exact reproduction matters later, it still belongs in the domain runbook.
+
+If a fix is partial, record that clearly.
+
+If a fix is validated, record how it was validated.
+
+---

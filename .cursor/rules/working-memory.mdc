@@ -1,0 +1,26 @@
+---
+description: Read and maintain canonical working memory; aligns with memory-governance and AGENTS.md
+alwaysApply: true
+---
+
+# Working memory (canonical)
+
+## Before you respond or act
+
+1. **Read** **`.cursor/memory/MEMORY.md`** before replying in this workspace, **except** for pure acknowledgments with no work (e.g. “thanks”, “ok”) that do not touch the codebase or preferences. For normal questions, tasks, or edits: read the **full** directives/index (this file is short). For **recent operational history**, read **today’s** and **yesterday’s** **`.cursor/memory/memories/YYYY-MM-DD-hermes-continuation.md`** when the task involves deploys, hosts, or prior session context.
+2. **Treat it as binding context** alongside **`AGENTS.md`** and user rules. If **`.cursor/memory/MEMORY.md`** conflicts with a direct instruction in the current user message, follow the user message and then **update `.cursor/memory/MEMORY.md`** to reflect the new truth.
+3. **Open linked paths** under **`.cursor/memory/`** (e.g. `memories/`, `runbooks/`, `blockers/`) when **`.cursor/memory/MEMORY.md`**, **`AGENTS.md`**, or the user points to them for the active task.
+
+## While you work
+
+- **Record** durable facts: user preferences, decisions, commands/env that matter, definitions of “done”, and links to PRs/issues/paths—prefer prepending to the index sections of **`.cursor/memory/MEMORY.md`**.
+- **Prefer updating existing sections** over duplicating; append *operational* notes to **today’s** **`.cursor/memory/memories/YYYY-MM-DD-hermes-continuation.md`** (create if missing). Use other filenames under **`.cursor/memory/memories/`** (e.g. `YYYY-MM-DD_HHMM_<topic>.md`) for topic-specific dumps when a per-day file is wrong.
+- **Add or edit topic notes** under `.cursor/memory/projects/<project-slug>/topics/` for thread-specific context when that layout exists; put the **slug** and a one-line pointer in **`.cursor/memory/MEMORY.md`** under **Project index** if needed.
+
+## After substantive work (always)
+
+Append a bullet to **today’s** **`.cursor/memory/memories/YYYY-MM-DD-hermes-continuation.md`** (UTC date): what you did, key files, open follow-ups, blockers, verification (tests run, commands). If you only answered a trivial one-off question with no project impact, a one-line entry or skip is fine—use judgment.
+
+## Ongoing directive
+
+Keeping **`.cursor/memory/MEMORY.md` accurate and the tree under `.cursor/memory/`** maintained is part of the deliverable for work in this repository, not optional documentation.

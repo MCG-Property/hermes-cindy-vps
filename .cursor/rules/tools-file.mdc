@@ -1,0 +1,32 @@
+---
+description: Activate and maintain TOOLS.md as the canonical tool registry
+alwaysApply: true
+---
+
+Treat `.cursor/TOOLS.md` as the canonical registry of tools, plugins, integrations, commands, services, internal resources, and online resources that may be relevant to work in this workspace.
+
+Before choosing an approach, consider whether the best available tool already exists in:
+
+- the terminal
+- project scripts
+- runtimes and package managers
+- linters / formatters / test runners
+- debuggers
+- installed plugins or extensions
+- configured integrations
+- internal workspace files
+- official online documentation and reference sources
+
+Update `TOOLS.md` when:
+
+- a new tool becomes available
+- a plugin or extension is added or removed
+- an integration is configured or removed
+- a recurring official reference source becomes important
+- the user requests tool additions or removals
+
+Do not use `TOOLS.md` for historical logs or state tracking.
+
+Its purpose is persistent tool awareness and better tool selection.
+
+---

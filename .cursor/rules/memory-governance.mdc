@@ -1,0 +1,50 @@
+---
+description: Persistent memory handling and concise memory indexing
+alwaysApply: true
+---
+
+After each turn, update memory deliberately and minimally.
+
+**`.cursor/memory/MEMORY.md`** must remain high signal in its *index* sections (prefs, decisions, pointers). **Operational continuation** lives in **`.cursor/memory/memories/YYYY-MM-DD-hermes-continuation.md`** (one file per UTC day)—append there rather than duplicating runbooks.
+
+Store in the index portions of **`.cursor/memory/MEMORY.md`** only:
+
+- durable user instructions
+- durable user preferences
+- standing directives
+- major pivot decisions
+- high-level architecture notes
+- references to important dependent files with exact paths
+
+Do not store in the index portions of **`.cursor/memory/MEMORY.md`** (use **`*-hermes-continuation.md`**, other `memories/` files, or runbooks as appropriate):
+
+- verbose project logs
+- chains of attempted fixes
+- blocker narratives
+- runbook-level detail
+- detailed execution history
+
+When adding a new durable index-style item, prepend it to the top of **`.cursor/memory/MEMORY.md`**.
+
+Detailed project-specific context belongs in timestamped files under:
+
+- `.cursor/memory/memories/YYYY-MM-DD-hermes-continuation.md` (per-day ops)
+- `.cursor/memory/memories/YYYY-MM-DD_HHMM_<topic>.md` (topic-specific)
+
+Each memory file should preserve concise but complete continuity for a topic or work session, including when relevant:
+
+- what was being worked on
+- context
+- processes performed
+- protocols followed
+- actions taken
+- files touched
+- blockers found
+- blockers resolved
+- blockers still persisting
+- outcomes
+- next relevant state
+
+Do not bloat the main memory file with content that belongs in detailed memory files.
+
+---
