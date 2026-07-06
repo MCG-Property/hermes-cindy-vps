@@ -31,7 +31,7 @@
 ## macOS shell (from anywhere)
 
 - Source: `hermes-agent/scripts/shell/droplet-cindy.zsh` (via `~/.zshrc`); login script is **base64-embedded in the remote `ssh` command** (`echo '…' | base64 -d | bash`) so a **PTY (`-tt`)** still works — piping base64 into `ssh -tt` often dumps the raw blob to the terminal instead of running it. **`droplet-login.sh`** finishes with **`exec bash … </dev/tty`** (and stdout/stderr to the same TTY) so the interactive shell’s stdin is the **SSH pseudo-terminal**, not an **EOF’d pipe** — without that, the session can open and **drop straight away**.
-- **`droplet-cindy`** — interactive `ssh` to **`hermes-droplet-cindy`** as `root`; activates `/root/hermes-agent/venv` with **purple/magenta `(venv)`** in `PS1` (re-applied every prompt via `PROMPT_COMMAND`). Verify: `which hermes` → `/root/hermes-agent/venv/bin/hermes`, `echo "$VIRTUAL_ENV"`.
-- **`hermes <subcommand> [args...] droplet cindy`** — same SSH host; runs **`hermes`** inside that venv remotely (trailing **`droplet cindy`** or legacy **`droplet-cindy`** is stripped). Examples: `hermes onboard droplet cindy`, `hermes doctor droplet cindy`, `hermes droplet cindy` (remote `hermes` / TUI when no other args).
+- **`droplet-cindy`**, **`hermes-droplet-cindy`**, or **`hermes-droplet cindy`** — interactive `ssh` to **`hermes-droplet-cindy`** as `root`; activates `/root/hermes-agent/venv` with **purple/magenta `(venv)`** in `PS1` (re-applied every prompt via `PROMPT_COMMAND`). Verify: `which hermes` → `/root/hermes-agent/venv/bin/hermes`, `echo "$VIRTUAL_ENV"`.
+- **`hermes <subcommand> [args...] droplet cindy`** (also **`hermes-droplet cindy`**, **`… droplet-cindy`**, **`… hermes-droplet-cindy`**) — same SSH host; runs **`hermes`** inside that venv remotely (trailing route tokens stripped). Examples: `hermes onboard droplet cindy`, `hermes doctor droplet cindy`, `hermes droplet cindy` (remote `hermes` / TUI when no other args).
 
 ---
