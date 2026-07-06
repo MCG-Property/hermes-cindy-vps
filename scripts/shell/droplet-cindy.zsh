@@ -1,4 +1,4 @@
-# hermes-droplet-cindy — SSH helpers + hermes … droplet cindy / droplet-cindy routing
+# hermes-droplet-cindy — SSH helpers + hermes … droplet cindy / droplet-cindy / hermes-droplet-cindy routing
 # Source from ~/.zshrc (after local hermes-env.sh if present) for global availability.
 
 : "${HERMES_DROPLET_CINDY_ENV:=/Users/agent-os/client-agents/cindy/.env}"
@@ -98,10 +98,29 @@ _droplet_cindy_parse_hermes_route() {
     _DROPLET_CINDY_HERMES_ARGS=("${args[@]:0:$(( ${#args[@]} - 2 ))}")
     return 0
   fi
-  if (( ${#args[@]} >= 1 )) && [[ "${args[-1]}" == droplet-cindy ]]; then
+  if (( ${#args[@]} >= 2 )) && [[ "${args[-2]}" == hermes-droplet && "${args[-1]}" == cindy ]]; then
+    _DROPLET_CINDY_HERMES_ARGS=("${args[@]:0:$(( ${#args[@]} - 2 ))}")
+    return 0
+  fi
+  if (( ${#args[@]} >= 1 )) && [[ "${args[-1]}" == droplet-cindy || "${args[-1]}" == hermes-droplet-cindy ]]; then
     _DROPLET_CINDY_HERMES_ARGS=("${args[@]:0:$(( ${#args[@]} - 1 ))}")
     return 0
   fi
+  return 1
+}
+
+# Interactive SSH aliases (host-style names users expect).
+hermes-droplet-cindy() {
+  droplet-cindy "$@"
+}
+
+hermes-droplet() {
+  if (( $# >= 1 )) && [[ "$1" == cindy ]]; then
+    shift
+    droplet-cindy "$@"
+    return $?
+  fi
+  print -u2 "hermes-droplet: use 'hermes-droplet cindy' or 'hermes-droplet-cindy' or 'droplet-cindy'" >&2
   return 1
 }
 
