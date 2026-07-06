@@ -9,7 +9,7 @@
 
 ## hermes-droplet-cindy — code sync (same repo as this workspace)
 
-- **Remote / branch:** `https://github.com/mcgpropertysupport/hermes-agent-cindy.git`, **`main`** tracking **`origin/main`**. Checkout on server: **`/root/hermes-agent`**.
+- **Remote / branch:** `https://github.com/mcgpropertysupport/hermes-agent-cindy.git`, **`main`** tracking **`origin/main`**. Checkout on server: **`/root/hermes-agent`**. **Private HERMES_HOME submodule:** `hermes-agent-cindy-droplet-private/` → `https://github.com/mcgpropertysupport/hermes-agent-cindy-droplet-private.git` (full droplet `~/.hermes`, no gitignore).
 - **After pushing from local**, on the droplet run: `cd /root/hermes-agent && git fetch origin && git pull --ff-only origin main && git submodule update --init --recursive`.
 - **If** `pyproject.toml`, `uv.lock`, or `package.json` **changed**, also from `/root/hermes-agent`: `export PATH="/root/.local/bin:$PATH" && export VIRTUAL_ENV=/root/hermes-agent/venv && uv pip install -e ".[all,dev]" && uv pip install -e ./tinker-atropos && npm install`.
 - **Operator note** on server also lives at **`/root/.hermes/.hermes`** (mode 600).

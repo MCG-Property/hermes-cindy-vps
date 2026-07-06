@@ -15,9 +15,17 @@
 
 ## Staying in sync with the Mac workspace
 
-- **Same remote as local clone:** `https://github.com/mcgpropertysupport/hermes-agent-cindy.git`, branch **`main`**, tracking **`origin/main`**.
+- **Same remote as local clone:** `https://github.com/mcgpropertysupport/hermes-agent-cindy.git`, branch **`main`**, tracking **`origin/main`**. On the droplet, **`origin`** uses SSH via deploy key: `git@github.com-hermes-cindy:mcgpropertysupport/hermes-agent-cindy.git` (see **Deploy key** below).
+- **Deploy key (droplet → GitHub):** ed25519 at `/root/.ssh/hermes-agent-cindy-deploy` (+ `.pub`). SSH config host alias **`github.com-hermes-cindy`** → `github.com` with that key. GitHub repo deploy key title **`hermes-droplet-cindy-deploy`** with **write access** (`read_only: false`). Re-add via: `gh api repos/mcgpropertysupport/hermes-agent-cindy/keys --method POST -f title=hermes-droplet-cindy-deploy -f key="$(tr -d '\n' < pubfile)" -F read_only=false`. After rotating, test: `git fetch origin && git pull --ff-only origin main` (and `git push` if needed).
 - **Deploy code after push:** on the droplet, `cd /root/hermes-agent && git fetch origin && git pull --ff-only origin main && git submodule update --init --recursive`. If `pyproject.toml` / `uv.lock` / `package.json` changed, re-run `uv pip install -e ".[all,dev]"`, `uv pip install -e ./tinker-atropos`, and `npm install` from that directory (venv + `PATH` including `/root/.local/bin` as already set up).
 - **`HERMES_HOME` marker file:** `/root/.hermes/.hermes` exists (mode 600), documenting the pull/dependency refresh commands for operators.
+
+## Private HERMES_HOME snapshot (submodule)
+
+- **Repo:** `https://github.com/mcgpropertysupport/hermes-agent-cindy-droplet-private.git` — full `/root/.hermes` snapshot, **no `.gitignore`**, private.
+- **Local submodule path (top-level):** `hermes-agent-cindy-droplet-private/` in the `hermes-agent-cindy` repo.
+- **Droplet deploy key (private repo only):** `/root/.ssh/hermes-droplet-private-deploy`; SSH alias **`github.com-hermes-cindy-private`**. GitHub deploy key title **`hermes-droplet-private-deploy`** (write). Same public key cannot be reused across repos — separate from `hermes-agent-cindy-deploy`.
+- **Refresh private snapshot from droplet:** rsync `/root/.hermes/` → clone of private repo, `git add -A`, commit, push (or automate on droplet using alias `git@github.com-hermes-cindy-private:mcgpropertysupport/hermes-agent-cindy-droplet-private.git`).
 
 ## macOS shell (from anywhere)
 
