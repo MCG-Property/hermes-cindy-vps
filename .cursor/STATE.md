@@ -32,6 +32,6 @@
 
 ## Last Updated
 
-- 2026-06-24 — remote → `mcgpropertysupport/hermes-agent-cindy`; pushed `4bf5bec7`
+- 2026-06-24 — private HERMES_HOME submodule `hermes-agent-cindy-droplet-private` pushed + linked (`d044f18d`)
 
 ---

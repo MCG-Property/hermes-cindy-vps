@@ -25,7 +25,8 @@
 - **Repo:** `https://github.com/mcgpropertysupport/hermes-agent-cindy-droplet-private.git` — full `/root/.hermes` snapshot, **no `.gitignore`**, private.
 - **Local submodule path (top-level):** `hermes-agent-cindy-droplet-private/` in the `hermes-agent-cindy` repo.
 - **Droplet deploy key (private repo only):** `/root/.ssh/hermes-droplet-private-deploy`; SSH alias **`github.com-hermes-cindy-private`**. GitHub deploy key title **`hermes-droplet-private-deploy`** (write). Same public key cannot be reused across repos — separate from `hermes-agent-cindy-deploy`.
-- **Refresh private snapshot from droplet:** rsync `/root/.hermes/` → clone of private repo, `git add -A`, commit, push (or automate on droplet using alias `git@github.com-hermes-cindy-private:mcgpropertysupport/hermes-agent-cindy-droplet-private.git`).
+- **Refresh private snapshot from droplet:** rsync `/root/.hermes/` → clone of private repo, `git add -A`, commit, push using `git@github.com-hermes-cindy-private:mcgpropertysupport/hermes-agent-cindy-droplet-private.git`.
+- **Submodule on droplet:** after `git pull`, run `git config submodule.hermes-agent-cindy-droplet-private.url git@github.com-hermes-cindy-private:mcgpropertysupport/hermes-agent-cindy-droplet-private.git` (once per clone) then `git submodule update --init hermes-agent-cindy-droplet-private` — HTTPS submodule URL fails headless without a token.
 
 ## macOS shell (from anywhere)
 
