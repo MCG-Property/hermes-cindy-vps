@@ -1,4 +1,4 @@
-# hermes-droplet-cindy — SSH helpers + hermes … droplet-cindy routing
+# hermes-droplet-cindy — SSH helpers + hermes … droplet cindy / droplet-cindy routing
 # Source from ~/.zshrc (after local hermes-env.sh if present) for global availability.
 
 : "${HERMES_DROPLET_CINDY_ENV:=/Users/agent-os/client-agents/cindy/.env}"
@@ -91,14 +91,27 @@ _hermes_droplet_cindy_run() {
   return $rc
 }
 
+# Return 0 if args route to hermes-droplet-cindy; sets _DROPLET_CINDY_HERMES_ARGS (remote argv).
+_droplet_cindy_parse_hermes_route() {
+  local -a args=("$@")
+  if (( ${#args[@]} >= 2 )) && [[ "${args[-2]}" == droplet && "${args[-1]}" == cindy ]]; then
+    _DROPLET_CINDY_HERMES_ARGS=("${args[@]:0:$(( ${#args[@]} - 2 ))}")
+    return 0
+  fi
+  if (( ${#args[@]} >= 1 )) && [[ "${args[-1]}" == droplet-cindy ]]; then
+    _DROPLET_CINDY_HERMES_ARGS=("${args[@]:0:$(( ${#args[@]} - 1 ))}")
+    return 0
+  fi
+  return 1
+}
+
 if (( ${+functions[hermes]} )); then
   functions[_hermes_pre_droplet_cindy]=$functions[hermes]
 fi
 
 hermes() {
-  if (( $# )) && [[ "${@[-1]}" == "droplet-cindy" ]]; then
-    local -a hargs=("${@:1:$(( $# - 1 ))}")
-    _hermes_droplet_cindy_run "${hargs[@]}"
+  if _droplet_cindy_parse_hermes_route "$@"; then
+    _hermes_droplet_cindy_run "${_DROPLET_CINDY_HERMES_ARGS[@]}"
     return
   fi
   if (( ${+functions[_hermes_pre_droplet_cindy]} )); then

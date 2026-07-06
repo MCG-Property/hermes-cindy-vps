@@ -268,16 +268,16 @@ Prefer built-in project scripts and official tooling over improvised alternative
 **How to access**
 
 - **SSH:** `root@<CINDY_AGENT_DROPLET_IP>` with the **OpenSSH private key** from that `.env`; **passphrase** matches `CINDY_AGENT_DROPLET_SSH_PW` there. The host expects **publickey** auth (password auth to `sshd` is not enabled). For non-interactive local scripts, `SSH_ASKPASS` + `SSH_ASKPASS_REQUIRE=force` can supply the passphrase. **Do not** `source` the whole `.env` if it contains multiline keys—parse scalar lines or extract the PEM block with a small script.
-- **From this Mac (any directory):** after sourcing **`hermes-agent/scripts/shell/droplet-cindy.zsh`** from `~/.zshrc`, run **`droplet-cindy`** for an interactive session (venv activated with purple/magenta prompt tag), or **`hermes <subcommand> [args…] droplet-cindy`** to invoke **`hermes` on the droplet** (the final word `droplet-cindy` is stripped and not passed to remote `hermes`).
+- **From this Mac (any directory):** after sourcing **`hermes-agent/scripts/shell/droplet-cindy.zsh`** from `~/.zshrc`, run **`droplet-cindy`** for an interactive session (venv activated with purple/magenta prompt tag), or **`hermes <subcommand> [args…] droplet cindy`** to invoke **`hermes` on the droplet** (trailing **`droplet cindy`** or legacy **`droplet-cindy`** is stripped).
 
 **Common operations**
 
-- Project root on server: `/root/hermes-agent`; `droplet-cindy` enters shell with `venv` active; `hermes doctor droplet-cindy`, `hermes onboard droplet-cindy`, etc.
+- Project root on server: `/root/hermes-agent`; `droplet-cindy` enters shell with `venv` active; `hermes doctor droplet cindy`, `hermes onboard droplet cindy`, `hermes droplet cindy`, etc.
 
 **Constraints**
 
 - Treat the `.env` file as confidential; reference only its path in git-tracked docs.
-- The **`hermes` function wrapper** must be loaded **after** any local `hermes` helper in `~/.zshrc` so `… droplet-cindy` routing stays in effect.
+- The **`hermes` function wrapper** must be loaded **after** any local `hermes` helper in `~/.zshrc` so **`… droplet cindy`** routing stays in effect (Campbell’s outer `hermes()` forwards to this wrapper via `_hermes_precampbell`).
 
 **Related files**
 
