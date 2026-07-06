@@ -1,6 +1,3 @@
-[submodule "tinker-atropos"]
-	path = tinker-atropos
-	url = https://github.com/nousresearch/tinker-atropos
 [submodule "hermes-agent-cindy-droplet-private"]
 	path = hermes-agent-cindy-droplet-private
 	url = https://github.com/mcgpropertysupport/hermes-agent-cindy-droplet-private.git

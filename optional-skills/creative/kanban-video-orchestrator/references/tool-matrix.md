@@ -50,18 +50,12 @@ called from the terminal toolset; they don't appear in `always_load`.
 | `gif-search` | Find existing GIFs | Editor / concept artist sourcing references |
 | `gifs` | GIF tooling | Masterer producing GIF deliverables |
 
-### Kanban infrastructure (`hermes-agent/skills/devops/`)
-
-| Skill | What it does | When to load |
-|-------|--------------|--------------|
-| `kanban-orchestrator` | Decomposition playbook + anti-temptation rules for orchestrator profiles | Director only |
-| `kanban-worker` | Pitfalls, examples, edge cases for kanban workers (deeper than auto-injected guidance) | Any profile — load when handling tricky multi-step workflows |
+### Kanban infrastructure
 
 The kanban plugin auto-injects baseline orchestration guidance into every
 worker's system prompt — the `kanban_create` fan-out pattern, claim/handoff
-lifecycle, and the "decompose, don't execute" rule for orchestrators.
-`kanban-orchestrator` and `kanban-worker` are deeper playbooks loaded when a
-profile needs them.
+lifecycle, and the "decompose, don't execute" rule for orchestrators. There is
+no kanban skill to load; the guidance is always present for kanban workers.
 
 ## External tools (called from terminal toolset)
 
@@ -81,7 +75,16 @@ them directly.
 | Remotion CLI (`npx remotion render`) | React-based motion graphics | renderer-motion-graphics |
 | Manim CE (`manim`) | Math animation render (driven by `manim-video` skill's recipes) | renderer-manim |
 | Blender (`blender -b`) | 3D rendering (alternative to `blender-mcp`) | renderer-3d |
-| Gemini multimodal / Claude vision | AI review of clips | reviewer, cinematographer, editor |
+
+## Built-in Hermes tools for media review
+
+These are native Hermes tools — not invoked via terminal but through their own
+toolsets. Enable them per-profile by adding the toolset to the profile config.
+
+| Tool | Toolset | What it does | Profile that uses it |
+|------|---------|--------------|----------------------|
+| `video_analyze` | `video` (opt-in — `hermes tools enable video`) | Native video understanding — sends full clip to a multimodal LLM (Gemini via OpenRouter) for review without frame extraction. Supports mp4, webm, mov, avi, mkv. 50 MB cap. Model: `AUXILIARY_VIDEO_MODEL` env → `AUXILIARY_VISION_MODEL` fallback. | reviewer, cinematographer, editor |
+| `vision_analyze` | `vision` (core — enabled by default) | Image/frame analysis — review stills, thumbnails, exported frames. Already available to all profiles without opt-in. | reviewer, cinematographer, concept-artist |
 
 ## Standard toolset configurations per role
 
@@ -93,8 +96,7 @@ toolsets:
   - terminal
   - file
 skills:
-  always_load:
-    - kanban-orchestrator
+  always_load: []
 ```
 
 The director's terminal access is conventional but the SOUL.md rules forbid
@@ -108,7 +110,6 @@ toolsets:
   - file
 skills:
   always_load:
-    - kanban-worker
     - humanizer            # post-process scripts to strip AI-tells
 ```
 
@@ -123,7 +124,6 @@ toolsets:
   - file
 skills:
   always_load:
-    - kanban-worker
     # plus one or more (style-dependent):
     # - claude-design       (UI / web product video)
     # - sketch              (quick mockup variants)
@@ -142,7 +142,6 @@ toolsets:
   - file
 skills:
   always_load:
-    - kanban-worker
     # one of:
     # - excalidraw              (sketch storyboards)
     # - architecture-diagram    (technical/system content)
@@ -156,9 +155,10 @@ toolsets:
   - kanban
   - terminal
   - file
+  - video               # video_analyze — review full clips natively
+  - vision              # vision_analyze — review stills / exported frames
 skills:
   always_load:
-    - kanban-worker
     # the visual skill that matches the project, e.g.:
     # - ascii-video            (ASCII projects)
     # - manim-video            (math/explainer)
@@ -177,7 +177,6 @@ toolsets:
   - file
 skills:
   always_load:
-    - kanban-worker
     # ONE skill per renderer variant (or empty for external-API renderers):
     # - ascii-video               (renderer-ascii)
     # - manim-video               (renderer-manim)
@@ -191,9 +190,9 @@ skills:
 ```
 
 For external-API renderers (image-to-video-generator using Runway, voice-talent
-using ElevenLabs, renderer-motion-graphics using Remotion), `always_load` only
-contains `kanban-worker` — the role's work is API-driven and the API key +
-terminal commands suffice.
+using ElevenLabs, renderer-motion-graphics using Remotion), `always_load` is
+empty — the role's work is API-driven and the API key +
+terminal commands suffice (kanban guidance is auto-injected regardless).
 
 For multi-skill renderer setups (rare — usually one variant per skill is
 cleaner) use `--skill <name>` on individual `kanban_create` calls to override
@@ -208,7 +207,6 @@ toolsets:
   - file
 skills:
   always_load:
-    - kanban-worker
     # for image-generator that drives ComfyUI locally:
     # - comfyui
 env_required:
@@ -231,7 +229,6 @@ toolsets:
   - file
 skills:
   always_load:
-    - kanban-worker
     - songsee                         # spectrograms / audio analysis
     # plus (depending on what the project needs):
     # - songwriting-and-ai-music      (commissioning Suno tracks)
@@ -246,12 +243,14 @@ toolsets:
   - kanban
   - terminal
   - file
+  - video              # video_analyze — editor reviews assembled cuts natively
+  - vision             # vision_analyze — spot-check frames
 skills:
-  always_load:
-    - kanban-worker
+  always_load: []
 ```
 
-These are mostly ffmpeg-driven; no special skill needed beyond `kanban-worker`.
+These are mostly ffmpeg-driven; no special skill needed (kanban guidance is
+auto-injected into every kanban worker).
 For captioner add Whisper invocation patterns to the SOUL.md.
 
 ### reviewer / brand-cop
@@ -259,26 +258,24 @@ For captioner add Whisper invocation patterns to the SOUL.md.
 ```yaml
 toolsets:
   - kanban
-  - terminal           # for media inspection
+  - terminal           # for media inspection (ffprobe, etc.)
   - file
+  - video              # video_analyze — review full clips natively
+  - vision             # vision_analyze — review stills / exported frames
 skills:
-  always_load:
-    - kanban-worker
-env_required:
-  - OPENROUTER_API_KEY    # if using Gemini multimodal review
-  # or ANTHROPIC_API_KEY if using Claude vision (already required globally)
+  always_load: []
 ```
 
 ## API key requirements
 
 Track these in the project setup. The setup script should verify each required
-key is present in `~/.hermes/.env` (or macOS Keychain) before firing the kanban.
+key is present in `${HERMES_HOME:-~/.hermes}/.env` (or macOS Keychain) before firing the kanban.
 
 | Service | Env var | Used by |
 |---------|---------|---------|
 | ElevenLabs | `ELEVENLABS_API_KEY` | voice-talent |
 | OpenAI | `OPENAI_API_KEY` | image-generator (DALL-E), voice-talent (TTS) |
-| OpenRouter | `OPENROUTER_API_KEY` | reviewer, cinematographer, editor (Gemini multimodal review) |
+| OpenRouter | `OPENROUTER_API_KEY` | reviewer, cinematographer, editor (`video_analyze` routes through `AUXILIARY_VIDEO_MODEL` → OpenRouter) |
 | FAL | `FAL_KEY` | image-generator (FAL flux models) |
 | Replicate | `REPLICATE_API_TOKEN` | image-generator (alternate provider) |
 | Runway | `RUNWAY_API_KEY` | image-to-video-generator |
@@ -289,7 +286,7 @@ key is present in `~/.hermes/.env` (or macOS Keychain) before firing the kanban.
 | Anthropic | `ANTHROPIC_API_KEY` | every Hermes profile (Claude) |
 
 If a key is missing, prompt the user to add it. Storage methods, in order of
-preference: macOS Keychain → `~/.hermes/.env` → environment variable.
+preference: macOS Keychain → `${HERMES_HOME:-~/.hermes}/.env` → environment variable.
 
 ## Skill version pinning
 
