@@ -32,6 +32,6 @@
 
 ## Last Updated
 
-- 2026-06-24 — `hermes droplet cindy` routing restored
+- 2026-06-24 — remote → `mcgpropertysupport/hermes-agent-cindy`; pushed `4bf5bec7`
 
 ---

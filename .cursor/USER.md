@@ -1,6 +1,6 @@
 # USER.md
 
-- **Infrastructure — hermes-droplet-cindy:** Canonical SSH/API-style secrets live in **`/Users/agent-os/client-agents/cindy/.env`** (vars such as `CINDY_AGENT_DROPLET_*`). Use that file for IP, SSH passphrase (key), and keys. Never commit it or paste its values into tracked repo files. **Shell helpers:** `scripts/shell/droplet-cindy.zsh` — `droplet-cindy` (interactive SSH + venv prompt), **`hermes … droplet cindy`** (remote `hermes`; legacy **`droplet-cindy`** suffix still works); source from `~/.zshrc` before Campbell’s outer `hermes()` wrapper.
+- **Infrastructure — hermes-droplet-cindy:** Canonical SSH/API-style secrets live in **`/Users/agent-os/client-agents/cindy/.env`** (vars such as `CINDY_AGENT_DROPLET_*`). Never commit that file or paste its values into tracked repo files. **Git remote (canonical):** `https://github.com/mcgpropertysupport/hermes-agent-cindy.git` — commit/push from local `origin`; on droplet run `git pull` at `/root/hermes-agent` after pushes. **Shell helpers:** `scripts/shell/droplet-cindy.zsh` — `droplet-cindy` (interactive SSH + venv prompt), **`hermes … droplet cindy`** (remote `hermes`; legacy **`droplet-cindy`** suffix still works); source from `~/.zshrc` before Campbell’s outer `hermes()` wrapper.
 
 Store durable user-specific instructions, preferences, and standing directives here.
 
