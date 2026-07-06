@@ -3,6 +3,7 @@
 ## Current Objective
 
 - ✅ Cursor bootstrap reconciled (§3–§5); ✅ **hermes-droplet-cindy** has Hermes cloned and dev-initialized at `/root/hermes-agent`.
+- ✅ Restored **`hermes … droplet cindy`** (two-word suffix) routing in `scripts/shell/droplet-cindy.zsh`.
 
 ## Active Items
 
@@ -10,7 +11,7 @@
 
 ## Files in Active Use
 
-- `.cursor/BOOTSTRAP.md`, `.cursor/memory/runbooks/agent-config-bootstrap.md`, `.cursor/memory/runbooks/hermes-droplet-cindy.md`, `.cursor/memory/memories/2026-05-04-hermes-continuation.md`
+- `scripts/shell/droplet-cindy.zsh`, `.cursor/memory/runbooks/hermes-droplet-cindy.md`
 
 ## Open Blockers
 
@@ -31,6 +32,6 @@
 
 ## Last Updated
 
-- 2026-05-04 (session)
+- 2026-06-24 — `hermes droplet cindy` routing restored
 
 ---
