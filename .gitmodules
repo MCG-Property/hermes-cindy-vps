@@ -3,4 +3,4 @@
 	url = https://github.com/nousresearch/tinker-atropos
 [submodule "hermes-agent-cindy-droplet-private"]
 	path = hermes-agent-cindy-droplet-private
-	url = https://github.com/mcgpropertysupport/hermes-agent-cindy-droplet-private.git
+	url = https://github.com/MCG-Property/hermes-cindy-vps-private.git
