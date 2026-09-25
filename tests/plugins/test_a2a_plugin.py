@@ -330,6 +330,11 @@ class TestV1Parts:
         params = {"contextId": "ctx-top", "message": protocol.text_message(protocol.ROLE_USER, "x")}
         assert protocol.extract_context_id(params) == "ctx-top"
 
+    def test_reply_session_id_extracted_from_message_metadata(self):
+        message = protocol.text_message(protocol.ROLE_USER, "final")
+        message["metadata"] = {"hermesReplySessionId": "20260920_010203_deadbeef"}
+        assert protocol.extract_reply_session_id({"message": message}) == "20260920_010203_deadbeef"
+
 
 class TestV1Task:
     def test_completed_task_shape(self):
@@ -1320,6 +1325,28 @@ class TestMultiAgentRouting:
         assert terminal["status"]["state"] == protocol.STATE_COMPLETED
         assert protocol.extract_text(terminal["artifacts"][0]) == "dev reply"
         assert adapter.tasks.get(terminal["id"])["state"] == protocol.STATE_COMPLETED
+
+    def test_exact_session_callback_bypasses_new_a2a_chat(self, monkeypatch):
+        from plugins.platforms.a2a.adapter import A2AAdapter
+        from gateway.config import PlatformConfig
+
+        adapter = A2AAdapter(PlatformConfig(enabled=True))
+        seen = {}
+
+        def fake_forward(session_id, framed_text):
+            seen["session_id"] = session_id
+            seen["text"] = framed_text
+            return "origin reply", protocol.STATE_COMPLETED
+
+        adapter._forward_to_existing_session = fake_forward  # type: ignore
+        message = protocol.text_message(protocol.ROLE_USER, "provider final", context_id="origin-context")
+        message["metadata"] = {"hermesReplySessionId": "20260920_010203_deadbeef"}
+        terminal, pending = adapter._prepare_task({"message": message}, "peer-x")
+
+        assert pending is None
+        assert seen["session_id"] == "20260920_010203_deadbeef"
+        assert "provider final" in seen["text"]
+        assert protocol.extract_text(terminal["artifacts"][0]) == "origin reply"
 
 
 class TestClientTenantAndDiscovery:

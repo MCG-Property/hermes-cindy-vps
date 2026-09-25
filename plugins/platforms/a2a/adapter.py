@@ -525,16 +525,88 @@ class A2AAdapter(BasePlatformAdapter):
         protocol.metrics.tasks_failed += state == protocol.STATE_FAILED
         return protocol.build_task(rec["task_id"], rec["context_id"], state, text, created_at=rec["created_iso"]), None
 
+    def _forward_to_existing_session(self, session_id: str, text: str) -> tuple[str, str]:
+        """Run an A2A callback in an existing Hermes session via the local API.
+
+        This preserves A2A as the provider transport while letting Desktop/TUI
+        clients keep one durable conversation instead of receiving a new A2A
+        chat for every background completion.
+        """
+        source = _state_db(
+            self._active_profile,
+            "SELECT source FROM sessions WHERE id = ? LIMIT 1",
+            (session_id,),
+            "A2A: could not verify exact-session callback target",
+        )
+        if not source:
+            return f"Originating Hermes session not found: {session_id}", protocol.STATE_FAILED
+        try:
+            from hermes_cli.config import load_config
+
+            cfg = load_config() or {}
+            api_cfg = ((cfg.get("gateway") or {}).get("platforms") or {}).get("api_server")
+            if not isinstance(api_cfg, dict):
+                api_cfg = (cfg.get("platforms") or {}).get("api_server") or {}
+            host = str(api_cfg.get("host") or "127.0.0.1")
+            if host in {"0.0.0.0", "::", "[::]"}:
+                host = "127.0.0.1"
+            port = int(api_cfg.get("port") or 8642)
+            key = str(api_cfg.get("key") or _get_scoped_secret("API_SERVER_KEY", ""))
+            if not key:
+                raise RuntimeError("API_SERVER_KEY is unavailable")
+            base = f"http://{host}:{port}"
+            sid = urllib.parse.quote(session_id, safe="")
+
+            def api_json(method: str, path: str, body: dict) -> dict:
+                req = urllib.request.Request(
+                    base + path,
+                    data=json.dumps(body).encode("utf-8"),
+                    method=method,
+                    headers={
+                        "Authorization": f"Bearer {key}",
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                    },
+                )
+                with urllib.request.urlopen(req, timeout=_reply_timeout()) as resp:  # noqa: S310 - loopback config
+                    raw = resp.read().decode("utf-8", "replace")
+                return json.loads(raw) if raw else {}
+
+            # A completion should be visible even if an aggressive archive rule
+            # ran while the coding provider was still working.
+            with contextlib.suppress(Exception):
+                api_json("PATCH", f"/api/sessions/{sid}", {"archived": False})
+            result = api_json("POST", f"/api/sessions/{sid}/chat", {"message": text})
+            message = result.get("message") or {}
+            reply = str(message.get("content") or "") if isinstance(message, dict) else ""
+            return reply or f"Final status delivered to Hermes session {session_id}.", protocol.STATE_COMPLETED
+        except Exception as exc:
+            logger.warning("A2A exact-session callback failed for %s: %s", session_id, exc)
+            return f"Could not deliver final status to Hermes session {session_id}: {exc}", protocol.STATE_FAILED
+
     def _prepare_task(self, params: dict, peer: str, agent: Optional[dict] = None) -> tuple[Optional[dict], Optional[dict]]:
         """Validate, register, and dispatch an inbound message (HTTP worker thread). Returns
         (terminal_task, None) when it ends immediately, else (None, pending) with the future to wait on."""
         agent = agent or self._agents[""]
         text = protocol.extract_text(params)
         context_id = protocol.extract_context_id(params) or protocol.new_context_id()
+        reply_session_id = protocol.extract_reply_session_id(params)
         task_id = protocol.new_task_id()
+        rec = self.tasks.create(task_id, context_id, peer, *self._scope_for_agent(agent))
+        if reply_session_id:
+            if not text:
+                return self._end_task(rec, protocol.STATE_REJECTED, "Empty task — nothing to do.")
+            security.audit("inbound", peer, task_id, text)
+            protocol.persist_message(context_id, "user", text, task_id)
+            protocol.metrics.inbound_total += 1
+            framed = security.wrap_inbound(peer, text)
+            reply, state = self._forward_to_existing_session(reply_session_id, framed)
+            self._record_outcome(task_id, context_id, peer, state, reply)
+            return protocol.build_task(
+                task_id, context_id, state, reply, created_at=rec["created_iso"]
+            ), None
         turn = self._turns.track(context_id)
         max_turns = protocol.max_pingpong_turns()
-        rec = self.tasks.create(task_id, context_id, peer, *self._scope_for_agent(agent))
         if turn > max_turns:
             protocol.metrics.anti_loop_triggers += 1
             logger.warning("A2A: anti-loop triggered for context %s (turn %d > %d)", context_id, turn, max_turns)
