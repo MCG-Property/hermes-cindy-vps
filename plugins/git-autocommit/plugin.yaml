@@ -1,0 +1,12 @@
+name: git-autocommit
+version: "1.0.0"
+description: >-
+  Auto-commits and pushes uncommitted changes in the hermes-agent repo (and
+  its private submodule) whenever a Hermes session finalizes. Runs a plain
+  `git status --porcelain` check first and does nothing if the tree is
+  clean, so it never creates empty commits. Non-blocking: any git failure
+  (no network, auth not configured, merge conflict) is logged and swallowed
+  rather than raised, so it can never break session shutdown.
+author: "MCG Property"
+hooks:
+  - on_session_finalize
