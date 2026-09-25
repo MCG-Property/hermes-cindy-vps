@@ -139,6 +139,11 @@ def _core_tool_names() -> frozenset[str]:
 # answers the user's install request with a tool_search round trip.
 _DIRECT_SURFACE_TOOLSETS = frozenset({"desktop_ui", "project", "setup"})
 
+# A provider handoff is a control-plane operation.  Its single dispatch
+# primitive must be available in a live session; discovery and fan-out remain
+# eligible for progressive disclosure.
+_ALWAYS_DIRECT_TOOLS = frozenset({"a2a_call"})
+
 # Event-triggered tools deferred BY DEFAULT (a catalog stub suffices). Keep the curated
 # list in DEFAULT_CONFIG so config discovery and runtime behavior cannot drift. An explicit
 # ``defer`` list replaces this wholesale ([] = everything eager). ``clarify`` is deliberately
@@ -152,6 +157,8 @@ def is_deferrable_tool_name(name: str, defer_tools: Optional[frozenset] = None) 
     user override), OR an MCP tool, OR neither core nor a session-gated GUI surface (i.e. a
     plugin tool). Bridge names never defer."""
     if name in BRIDGE_TOOL_NAMES:
+        return False
+    if name in _ALWAYS_DIRECT_TOOLS:
         return False
     if defer_tools is not None and name in defer_tools:
         return True
@@ -536,8 +543,10 @@ def scoped_deferrable_names(tool_defs: List[Dict[str, Any]]) -> frozenset[str]:
     universe ``tool_call`` may reach. Gates bridge dispatch AND the executor unwrap so a
     restricted session cannot invoke an out-of-scope tool via the bridge."""
     defer_tools = load_config_readonly().effective_defer_tools
-    return frozenset(n for n in _tool_def_names(tool_defs)
-                     if n and is_deferrable_tool_name(n, defer_tools))
+    return frozenset(
+        n for n in _tool_def_names(tool_defs)
+        if n and (is_deferrable_tool_name(n, defer_tools) or n in _ALWAYS_DIRECT_TOOLS)
+    )
 
 
 def resolve_underlying_call(args: Dict[str, Any]) -> Tuple[Optional[str], Dict[str, Any], Optional[str]]:
@@ -567,6 +576,12 @@ def resolve_underlying_call(args: Dict[str, Any]) -> Tuple[Optional[str], Dict[s
 
     name = entries[0]["name"]
     raw_args = entries[0]["arguments"]
+    # Older in-flight transcripts can still emit the bridge form after the
+    # dispatch primitive was promoted to the direct surface.  Preserve the
+    # session scope check in the callers, but let that one native handoff
+    # execute instead of stranding the requesting chat on a stale shape.
+    if name in _ALWAYS_DIRECT_TOOLS:
+        return name, raw_args, None
     if not is_deferrable_tool_name(name, load_config_readonly().effective_defer_tools):
         return None, {}, not_deferrable_error(name)
     return name, raw_args, None

@@ -96,6 +96,17 @@ class TestClassification:
         for name in BRIDGE_TOOL_NAMES:
             assert not is_deferrable_tool_name(name)
 
+    def test_a2a_dispatch_stays_direct(self):
+        """A live session can initiate a provider round trip without discovery."""
+        from tools.tool_search import is_deferrable_tool_name, resolve_underlying_call
+        assert not is_deferrable_tool_name("a2a_call")
+        name, arguments, error = resolve_underlying_call({
+            "name": "a2a_call", "arguments": {"agent": "claude", "message": "ping"},
+        })
+        assert error is None
+        assert name == "a2a_call"
+        assert arguments["agent"] == "claude"
+
     def test_gui_surface_tools_never_defer(self):
         """Session-gated GUI tools stay direct and stay off the global core list."""
         from tools.registry import discover_builtin_tools, registry
@@ -568,6 +579,11 @@ class TestRegression_ToolsetScoping:
         assert "mcp_helper_op" in names
         # core tools are never deferrable
         assert "terminal" not in names
+
+    def test_scoped_names_include_compat_a2a_dispatch(self):
+        """A stale bridge-form call is accepted only when A2A is in session scope."""
+        from tools.tool_search import scoped_deferrable_names
+        assert "a2a_call" in scoped_deferrable_names([_td("a2a_call", "A2A dispatch")])
 
 
 # ---------------------------------------------------------------------------
