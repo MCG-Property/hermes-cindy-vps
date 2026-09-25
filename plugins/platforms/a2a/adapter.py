@@ -16,6 +16,7 @@ import subprocess
 import threading
 import time
 import urllib.parse
+import urllib.error
 import urllib.request
 from collections import deque
 from concurrent.futures import Future
@@ -557,26 +558,40 @@ class A2AAdapter(BasePlatformAdapter):
             base = f"http://{host}:{port}"
             sid = urllib.parse.quote(session_id, safe="")
 
-            def api_json(method: str, path: str, body: dict) -> dict:
-                req = urllib.request.Request(
-                    base + path,
-                    data=json.dumps(body).encode("utf-8"),
-                    method=method,
-                    headers={
-                        "Authorization": f"Bearer {key}",
-                        "Content-Type": "application/json",
-                        "Accept": "application/json",
-                    },
-                )
-                with urllib.request.urlopen(req, timeout=_reply_timeout()) as resp:  # noqa: S310 - loopback config
-                    raw = resp.read().decode("utf-8", "replace")
-                return json.loads(raw) if raw else {}
+            def api_json(method: str, path: str, body: dict, retries: int = 0) -> dict:
+                for attempt in range(retries + 1):
+                    req = urllib.request.Request(
+                        base + path,
+                        data=json.dumps(body).encode("utf-8"),
+                        method=method,
+                        headers={
+                            "Authorization": f"Bearer {key}",
+                            "Content-Type": "application/json",
+                            "Accept": "application/json",
+                        },
+                    )
+                    try:
+                        with urllib.request.urlopen(req, timeout=_reply_timeout()) as resp:  # noqa: S310 - loopback config
+                            raw = resp.read().decode("utf-8", "replace")
+                        return json.loads(raw) if raw else {}
+                    except urllib.error.HTTPError as exc:
+                        transient = exc.code in {409, 423, 429, 502, 503, 504}
+                        if not transient or attempt >= retries:
+                            raise
+                        retry_after = exc.headers.get("Retry-After", "")
+                        try:
+                            delay = min(15.0, max(0.5, float(retry_after)))
+                        except (TypeError, ValueError):
+                            delay = min(8.0, float(2 ** attempt))
+                        time.sleep(delay)
+                return {}
 
             # A completion should be visible even if an aggressive archive rule
             # ran while the coding provider was still working.
             with contextlib.suppress(Exception):
                 api_json("PATCH", f"/api/sessions/{sid}", {"archived": False})
-            result = api_json("POST", f"/api/sessions/{sid}/chat", {"message": text})
+            result = api_json(
+                "POST", f"/api/sessions/{sid}/chat", {"message": text}, retries=6)
             message = result.get("message") or {}
             reply = str(message.get("content") or "") if isinstance(message, dict) else ""
             return reply or f"Final status delivered to Hermes session {session_id}.", protocol.STATE_COMPLETED

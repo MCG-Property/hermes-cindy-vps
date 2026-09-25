@@ -444,7 +444,10 @@ class TestClientTools:
             )
 
         monkeypatch.setattr(tools, "_http_post_json", fake_post)
-        out = tools.a2a_call({"agent": "r", "message": "my key sk-abcdefghij1234567890ABCD please"})
+        out = tools.a2a_call(
+            {"agent": "r", "message": "my key sk-abcdefghij1234567890ABCD please"},
+            session_id="desktop-session-123",
+        )
         assert "here is the answer" in out
 
         params = captured["body"]["params"]
@@ -452,6 +455,7 @@ class TestClientTools:
         assert "contextId" not in params  # v1.0: not top-level
         assert msg["contextId"]           # v1.0: inside the Message
         assert msg["role"] == "ROLE_USER"
+        assert msg["metadata"] == {"hermesReplySessionId": "desktop-session-123"}
         part = msg["parts"][0]
         assert "kind" not in part
         assert part["mediaType"] == "text/plain"

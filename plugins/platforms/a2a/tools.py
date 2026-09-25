@@ -93,7 +93,13 @@ def _rpc_url(base_url: str, card: Optional[dict]) -> str:
     return base_url.rstrip("/")
 
 
-def _send_task(agent_label: str, peer: dict, message: str, context_id: str) -> tuple[str, str, str]:
+def _send_task(
+    agent_label: str,
+    peer: dict,
+    message: str,
+    context_id: str,
+    reply_session_id: str = "",
+) -> tuple[str, str, str]:
     """One SendMessage to a peer -> (reply_text, context_id, state). Raises urllib errors /
     ValueError for the caller to format; handles redaction, audit, persistence, metrics."""
     base_url = peer.get("url", "")
@@ -106,8 +112,13 @@ def _send_task(agent_label: str, peer: dict, message: str, context_id: str) -> t
     ctx = context_id or protocol.new_context_id()
     safe_message = security.redact_outbound(message)
     # v1.0: contextId lives inside the Message, not at the params top level.
+    wire_message = protocol.text_message(protocol.ROLE_USER, safe_message, context_id=ctx)
+    if reply_session_id:
+        # Standard A2A Message metadata carries the local return address. Peers
+        # that do not implement the Hermes extension safely ignore it.
+        wire_message["metadata"] = {"hermesReplySessionId": reply_session_id}
     rpc_body = {"jsonrpc": "2.0", "id": protocol.new_task_id(), "method": "SendMessage",
-                "params": {"message": protocol.text_message(protocol.ROLE_USER, safe_message, context_id=ctx)}}
+                "params": {"message": wire_message}}
     iface = _select_jsonrpc_interface(card)
     tenant = str(iface["tenant"]) if iface and iface.get("tenant") else str(peer.get("tenant") or "")
     if tenant:
@@ -170,19 +181,21 @@ def a2a_discover(args: dict, **_: Any) -> str:
     return "\n".join(lines)
 
 
-def a2a_call(args: dict, **_: Any) -> str:
+def a2a_call(args: dict, **runtime: Any) -> str:
     """Send a task to a peer (configured name or direct URL); ``context_id`` continues a prior exchange."""
     # Accept common aliases models reach for (observed live: 'agent_name').
     agent = str(args.get("agent") or args.get("agent_name") or args.get("name") or "").strip()
     message = str(args.get("message") or args.get("text") or args.get("task") or "").strip()
     context_id = str(args.get("context_id") or args.get("contextId") or "").strip()
+    reply_session_id = str(runtime.get("session_id") or "").strip()
     if not agent or not message:
         return "Error: both 'agent' and 'message' are required."
     peer = _resolve_peer(agent)
     if not peer or not peer.get("url"):
         return f"Error: unknown agent '{agent}'. Configure it under 'a2a_agents' in config.yaml or pass a full http(s):// URL."
     try:
-        reply, reply_ctx, state = _send_task(agent, peer, message, context_id)
+        reply, reply_ctx, state = _send_task(
+            agent, peer, message, context_id, reply_session_id=reply_session_id)
     except urllib.error.HTTPError as e:
         return _HTTP_CALL_ERRORS.get(e.code, "Error: call to '{agent}' failed — HTTP {code}.").format(agent=agent, code=e.code)
     except ValueError as e:
@@ -243,16 +256,24 @@ def _match_peers_by_capability(capability: str) -> list[tuple[str, dict]]:
             if capability in (entry.get("capabilities", []) or []) or capability == "*"]
 
 
-def _call_peer_sync(agent_name: str, peer_entry: dict, message: str, context_id: str = "") -> tuple[str, str]:
+def _call_peer_sync(
+    agent_name: str,
+    peer_entry: dict,
+    message: str,
+    context_id: str = "",
+    reply_session_id: str = "",
+) -> tuple[str, str]:
     """Call a single peer synchronously -> (agent_name, reply_text)."""
     try:
-        reply, _ctx, _state = _send_task(agent_name, _peer_from_entry(peer_entry), message, context_id)
+        reply, _ctx, _state = _send_task(
+            agent_name, _peer_from_entry(peer_entry), message, context_id,
+            reply_session_id=reply_session_id)
         return (agent_name, reply or "(no reply)")
     except Exception as e:
         return (agent_name, f"Error: {e}")
 
 
-def a2a_orchestrate(args: dict, **_: Any) -> str:
+def a2a_orchestrate(args: dict, **runtime: Any) -> str:
     """Fan-out a task to peers matching a capability. Modes: ``all``, ``first`` (first successful),
     ``best`` (longest successful — coarse; use ``all`` to judge yourself)."""
     capability = str(args.get("capability") or "").strip()
@@ -260,6 +281,7 @@ def a2a_orchestrate(args: dict, **_: Any) -> str:
     mode = str(args.get("mode") or "all").strip().lower()
     mode = mode if mode in ("all", "first", "best") else "all"
     context_id = str(args.get("context_id") or "").strip()
+    reply_session_id = str(runtime.get("session_id") or "").strip()
     if not message:
         return "Error: 'message' is required."
     if not capability:
@@ -268,7 +290,12 @@ def a2a_orchestrate(args: dict, **_: Any) -> str:
         return f"Error: no configured peers advertise capability '{capability}'."
     results: list[tuple[str, str]] = []
     with ThreadPoolExecutor(max_workers=min(len(matches), _ORCHESTRATE_MAX_WORKERS)) as pool:
-        futures = {pool.submit(_call_peer_sync, name, entry, message, context_id): name for name, entry in matches}
+        futures = {
+            pool.submit(
+                _call_peer_sync, name, entry, message, context_id, reply_session_id
+            ): name
+            for name, entry in matches
+        }
         for fut in as_completed(futures):
             name = futures[fut]
             try:
@@ -303,7 +330,8 @@ _TOOLS: dict[str, tuple[Any, str, dict, list[str]]] = {
     "a2a_call": (a2a_call,
                  "Send a natural-language task to a remote A2A agent and return its reply. The agent is a peer "
                  "(any A2A-compliant framework), not a sub-agent you control. Pass 'context_id' from a previous "
-                 "reply to continue a multi-turn exchange.",
+                 "reply to continue a multi-turn exchange. The originating Hermes session is attached "
+                 "automatically so asynchronous provider results return to that same session.",
                  {"agent": _str("Configured peer name (from a2a_agents) or a full http(s):// URL."),
                   "message": _str("The task / message to send the peer, in natural language."),
                   "context_id": _str("Optional: context id from a prior reply, to continue the conversation.")},
