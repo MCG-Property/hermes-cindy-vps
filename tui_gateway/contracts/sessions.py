@@ -624,6 +624,11 @@ class SessionCorrectionParams(SessionParams):
     text: str
 
 
+class SessionRedirectParams(SessionCorrectionParams):
+    # Explicit redirect (Desktop queue-panel Steer). Without it a busy session queues the text for the next turn.
+    interrupt: bool = False
+
+
 class SessionCorrectionResult(Result):
     status: CorrectionStatus
     text: str
@@ -631,7 +636,7 @@ class SessionCorrectionResult(Result):
 
 method("session.steer", params=SessionCorrectionParams, result=SessionCorrectionResult,
        doc="Inject text into the next tool result without interrupting the turn.")
-method("session.redirect", params=SessionCorrectionParams, result=SessionCorrectionResult,
+method("session.redirect", params=SessionRedirectParams, result=SessionCorrectionResult,
        doc="Redirect the active turn (queued for the next turn while the agent is still building).")
 
 
