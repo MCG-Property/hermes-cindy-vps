@@ -5,6 +5,7 @@ import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef } from 'react'
 
 import { writeClipboardText } from '@/components/ui/copy-button'
+import { markRightPanePerf } from '@/debug/right-pane-events'
 import { triggerHaptic } from '@/lib/haptics'
 import { isWindowsPlatform } from '@/lib/platform'
 import { useTheme } from '@/themes/context'
@@ -132,7 +133,7 @@ export function useAgentTerminal({ active, id, procId }: { active: boolean; id: 
     let lastFitSize: TerminalSize | null = null
     let lastFitAt = 0
 
-    fitRef.current = visible => {
+    fitRef.current = (visible?: boolean) => {
       if (host.clientWidth <= 0 || host.clientHeight <= 0) {
         return
       }

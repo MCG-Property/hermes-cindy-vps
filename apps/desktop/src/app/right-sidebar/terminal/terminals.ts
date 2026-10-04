@@ -135,8 +135,6 @@ export interface TerminalEntry {
    *  background process (`terminal(background=true)`), keyed by `procId`. */
   kind: 'user' | 'agent'
   procId?: string
-  /** Cursor CLI chat to `--resume` if this tab's tmux session is gone. */
-  cursorChatId?: string
   /** Restored tabs reattach tmux or start Cursor again. Fresh tabs do not. */
   resumeOnCreate?: boolean
 }
@@ -148,7 +146,6 @@ interface PersistedTerminalEntry {
   id: string
   restoreCwd?: string
   reviveBuffer?: string
-  cursorChatId?: string
   title: string
 }
 

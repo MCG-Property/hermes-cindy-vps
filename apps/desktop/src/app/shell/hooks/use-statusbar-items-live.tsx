@@ -50,7 +50,8 @@ import {
   idsShareLineage,
   sessionMatchesStoredId
 } from '@/store/session'
-import { $focusedRuntimeId, $focusedSessionState, $focusedStoredSessionId } from '@/store/session-states'
+import { $focusedStoredSessionId } from '@/store/session-focus'
+import { $focusedRuntimeId, $focusedSessionState } from '@/store/session-states'
 import { $statusbarHiddenIds } from '@/store/statusbar-prefs'
 import { $subagentsBySession, activeSubagentCount, failedSubagentCount } from '@/store/subagents'
 import { $gatewayRestarting } from '@/store/system-actions'
@@ -345,7 +346,6 @@ export function useStatusbarItems({
 
     return {
       className: status.hasUpdate ? 'text-primary hover:text-primary' : undefined,
-      detail: status.detail,
       hidden: status.unknown,
       icon: applying ? <Loader2 className="size-3 animate-spin" /> : <Hash className="size-3" />,
       id: 'version-client',
@@ -603,7 +603,8 @@ export function useStatusbarItems({
         detail: <LiveDuration since={sessionStartedAt} />,
         hidden: !sessionStartedAt,
         id: 'session-timer',
-        label: copy.session,
+        label: copy.focusedSince,
+        title: copy.focusedSinceTitle,
         toggleLabel: copy.toggleSessionTimer,
         variant: 'text'
       },

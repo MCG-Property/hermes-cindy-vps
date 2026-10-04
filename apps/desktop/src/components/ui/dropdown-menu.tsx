@@ -236,6 +236,8 @@ function DropdownMenuContent({
   sideOffset = 4,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content> & {
+  // Radix forwards this to its menu content at runtime but does not type it on DropdownMenu.Content.
+  onOpenAutoFocus?: (event: Event) => void
   portalContainer?: HTMLElement | null
 }) {
   // An explicit target-owned container supports global menus whose component
@@ -245,6 +247,23 @@ function DropdownMenuContent({
   const [hoverSubmenus] = React.useState(createHoverSubmenus)
 
   React.useEffect(() => hoverSubmenus.dispose, [hoverSubmenus])
+
+  // Open straight into a menu's search field when it has one.
+  const focusSearchOnOpen = (event: Event) => {
+    onOpenAutoFocus?.(event)
+
+    if (event.defaultPrevented) {
+      return
+    }
+
+    const root = event.currentTarget as HTMLElement | null
+    const search = root?.querySelector<HTMLInputElement>('[data-slot="dropdown-menu-search"] input')
+
+    if (search) {
+      event.preventDefault()
+      search.focus()
+    }
+  }
 
   return (
     <DropdownMenuPrimitive.Portal container={container}>
@@ -261,24 +280,9 @@ function DropdownMenuContent({
             // (avoidCollisions defaults on); the padding stops it kissing the edge.
             collisionPadding={collisionPadding}
             data-slot="dropdown-menu-content"
-            onOpenAutoFocus={event => {
-              onOpenAutoFocus?.(event)
-
-              if (event.defaultPrevented) {
-                return
-              }
-
-              const search = event.currentTarget.querySelector<HTMLInputElement>(
-                '[data-slot="dropdown-menu-search"] input'
-              )
-
-              if (search) {
-                event.preventDefault()
-                search.focus()
-              }
-            }}
             sideOffset={sideOffset}
             {...props}
+            {...({ onOpenAutoFocus: focusSearchOnOpen } as Record<string, unknown>)}
           />
         </HoverSubmenusContext.Provider>
       </MenuPortalContainerContext.Provider>
