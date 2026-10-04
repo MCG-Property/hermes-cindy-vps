@@ -1462,5 +1462,28 @@ def test_oversized_cron_output_is_delivered_as_one_whole_email():
     assert sent == [content]
 
 
+class TestSelfOnlySendPolicy(unittest.TestCase):
+    def test_self_recipient_is_allowed(self):
+        from plugins.platforms.email.adapter import recipient_allowed
+        self.assertTrue(recipient_allowed(
+            "Cam Douglas <info.campbell.douglas@gmail.com>",
+            "info.campbell.douglas@gmail.com",
+        ))
+
+    def test_external_recipient_is_rejected(self):
+        from plugins.platforms.email.adapter import recipient_allowed
+        self.assertFalse(recipient_allowed(
+            "other@example.com",
+            "info.campbell.douglas@gmail.com",
+        ))
+
+    def test_mixed_recipients_are_rejected(self):
+        from plugins.platforms.email.adapter import recipient_allowed
+        self.assertFalse(recipient_allowed(
+            "info.campbell.douglas@gmail.com, other@example.com",
+            "info.campbell.douglas@gmail.com",
+        ))
+
+
 if __name__ == "__main__":
     unittest.main()

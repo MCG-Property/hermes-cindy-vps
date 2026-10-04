@@ -3,6 +3,8 @@ projection. Bodies are rebound onto server.py's globals (method_ctx.bind_module)
 
 from __future__ import annotations
 
+import json
+
 from .method_ctx import bind_module
 
 # Verbose tool text is capped to the Ink render budget (a hair more, so the "[omitted …]" label
@@ -193,10 +195,13 @@ def _todo_state_from_history(history) -> dict | None:
             for call in msg.get("tool_calls") or []
             if isinstance(call, dict) and call.get("id") and is_todo_tool_call(call)
         }
-        if not todo_call_ids:
-            return None
         for msg in reversed(history):
-            if not isinstance(msg, dict) or msg.get("role") != "tool" or msg.get("tool_call_id") not in todo_call_ids:
+            if not isinstance(msg, dict) or msg.get("role") != "tool":
+                continue
+            # Messaging wrappers often store function.name="tool_call"; the real name is on the result.
+            named = str(msg.get("tool_name") or "") in _TODO_TOOL_NAMES
+            paired = bool(todo_call_ids) and msg.get("tool_call_id") in todo_call_ids
+            if not named and not paired:
                 continue
             content = msg.get("content", "")
             if not isinstance(content, str) or len(content) > MAX_TODO_RESULT_CHARS or '"todos"' not in content:

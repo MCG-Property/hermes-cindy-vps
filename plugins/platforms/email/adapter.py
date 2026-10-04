@@ -4,7 +4,9 @@ receives, SMTP sends. Configured via EMAIL_* env vars or ``platforms.email`` in 
 import asyncio
 import email as email_lib
 from contextlib import contextmanager, suppress
+from datetime import datetime, timezone
 import imaplib
+import json
 import logging
 import os
 import re
@@ -348,6 +350,58 @@ def _auth_props(text: str) -> List[Tuple[str, str]]:
     """``(property, value)`` pairs (``header.from=x``) of one comment-free Authentication-Results clause, property
     lowercased, surrounding quotes stripped. Quoted-string contents are never scanned for properties."""
     return [(p.lower(), v.strip('"')) for p, v in _AUTH_PROP_RE.findall(text) if p]
+
+
+_ADDR_RE = re.compile(r"[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}", re.I)
+
+
+def _all_email_addresses(raw: str) -> list[str]:
+    return [addr.lower() for addr in _ADDR_RE.findall(raw or "")]
+
+
+def _approved_send_exceptions() -> set[str]:
+    """Case-by-case extra recipients. Expired rows do not count."""
+    root = Path(os.environ.get("HERMES_HOME", "/home/hermes/.hermes"))
+    path = root / "runtime" / "email_send_exceptions.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return set()
+    now = datetime.now(timezone.utc)
+    approved: set[str] = set()
+    for row in data.get("approved") or []:
+        if not isinstance(row, dict):
+            continue
+        until = str(row.get("until") or "").strip()
+        addr = str(row.get("to") or "").strip().lower()
+        if not addr:
+            continue
+        if until:
+            try:
+                expiry = datetime.fromisoformat(until.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if expiry.tzinfo is None:
+                expiry = expiry.replace(tzinfo=timezone.utc)
+            if expiry <= now:
+                continue
+        approved.add(addr)
+    return approved
+
+
+def recipient_allowed(to_addr: str, account: str) -> bool:
+    """Standing rule: send only to the mailbox owner unless Cam approved another recipient."""
+    addrs = _all_email_addresses(to_addr)
+    if not addrs:
+        extracted = _extract_email_address(to_addr)
+        addrs = [extracted] if extracted and "@" in extracted else []
+    if not addrs:
+        return False
+    account = (account or "").strip().lower()
+    if account and all(addr == account for addr in addrs):
+        return True
+    extra = _approved_send_exceptions()
+    return bool(extra) and all(addr in extra or addr == account for addr in addrs)
 
 
 def _domain_of(address: str) -> str:
@@ -892,6 +946,10 @@ class EmailAdapter(BasePlatformAdapter):
 
     def _send_email(self, to_addr: str, body: str, reply_to_msg_id: Optional[str] = None) -> str:
         """Send an email via SMTP. Runs in executor thread."""
+        if not recipient_allowed(to_addr, self._address):
+            raise RuntimeError(
+                "refusing to send email to a non-self recipient without Cam's case-by-case approval"
+            )
         msg, msg_id, subject = self._new_reply(to_addr, body, reply_to_msg_id, attach_empty_body=True)
         self._smtp_send(msg)
         logger.info("[Email] Sent reply to %s (subject: %s)", to_addr, subject)
@@ -901,6 +959,10 @@ class EmailAdapter(BasePlatformAdapter):
                          reply_to_msg_id: Optional[str] = None) -> str:
         """Send a reply with attachments; *lenient* logs-and-skips unattachable files instead of raising.
         An explicit *reply_to_msg_id* threads the mail like ``_send_email`` does (#10131)."""
+        if not recipient_allowed(to_addr, self._address):
+            raise RuntimeError(
+                "refusing to send email to a non-self recipient without Cam's case-by-case approval"
+            )
         msg, msg_id, _ = self._new_reply(to_addr, body, reply_to_msg_id)
         for path, name in files:
             try:

@@ -193,6 +193,35 @@ def test_empty_list_at_nonzero_revision_is_a_real_clear():
     assert state == {"todos": [], "revision": 2}
 
 
+def test_history_derives_todo_from_wrapped_tool_call_name():
+    """Photon/messaging stores assistant calls as function.name=tool_call; tool_name is on the result."""
+    history = [
+        {
+            "role": "assistant",
+            "tool_calls": [{
+                "id": "call_wrapped",
+                "type": "function",
+                "function": {"name": "tool_call", "arguments": "{}"},
+            }],
+        },
+        {
+            "role": "tool",
+            "tool_name": "todo_list",
+            "tool_call_id": "call_wrapped",
+            "content": json.dumps({
+                "todos": [{"id": "A7", "content": "Enable WhatsApp", "status": "completed"}],
+                "revision": 2,
+            }),
+        },
+    ]
+
+    state = server._todo_state_from_history(history)
+
+    assert state["revision"] == 2
+    assert state["todos"][0]["id"] == "A7"
+    assert state["todos"][0]["status"] == "completed"
+
+
 def test_subagent_lifecycle_bypasses_tool_progress_off(monkeypatch):
     """Subagent rows feed the Desktop status stack / TUI spawn tree — application state, not
     tool-progress chrome — so display.tool_progress=off must not swallow them."""
