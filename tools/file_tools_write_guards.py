@@ -3,7 +3,8 @@
 Every guard returns ``None`` when the write may proceed, else an error string
 the tool returns verbatim.
 Guards, in the order the tools apply them: ``_check_sensitive_path`` (hard
-deny), ``_check_binary_document_write``, ``_check_protected_instruction_write``
+deny), ``_check_binary_document_write``, ``_check_hermes_config_write``
+(ALWAYS ask, live config.yaml), ``_check_protected_instruction_write``
 (ALWAYS ask), ``_check_approval_required_write`` (normal gate),
 ``_check_cross_profile_path`` (sandbox-mirror lost-work), ``_is_internal_file_tool_content``.
 ``_stale_overwrite_blocker`` (write_file only, under the per-path lock) refuses a
@@ -162,14 +163,8 @@ def _check_sensitive_path(filepath: str, task_id: str = "default") -> str | None
         return (
             f"Refusing to write to sensitive system path: {filepath}\n"
             "Use the terminal tool with sudo if you need to modify system files.")
-    # approvals.mode and other security settings live in config.yaml; a
-    # prompt-injected agent could silently disable exec approval by editing it.
-    hermes_config = _get_hermes_config_resolved()
-    if hermes_config and hermes_config in candidates:
-        return (
-            f"Refusing to write to Hermes config file: {filepath}\n"
-            "Agent cannot modify security-sensitive configuration. "
-            "Edit ~/.hermes/config.yaml directly or use 'hermes config' instead.")
+    # Live config.yaml is not hard-denied here: settings writes must be able
+    # to land, but ``_check_hermes_config_write`` asks BEFORE the edit.
     return None
 
 
@@ -228,8 +223,9 @@ def _protected_instruction_reason(filepath: str, task_id: str = "default",
     except (OSError, ValueError, RuntimeError):
         resolved = os.path.realpath(normalized)
 
-    # ~/.hermes itself is governed by its own guards (config.yaml hard-block,
-    # mirror guard, write_approval); this gate targets PROJECT-LOCAL files only.
+    # ~/.hermes itself is governed by its own guards (live config.yaml
+    # always-ask, mirror guard, write_approval); this gate targets
+    # PROJECT-LOCAL files only.
     # Must run before the ``.hermes`` component rule, which would match the home.
     # ``_hermes_exempt_homes`` also covers the ROOT when the active home is a named
     # profile, so ~/.hermes/<file> cannot read as project-local ``.hermes`` config.
@@ -256,21 +252,50 @@ _APPROVAL_UNAVAILABLE = "requires approval but the approval subsystem is unavail
 _NO_HUMAN = "requires approval but no interactive user or gateway is present to approve it."
 
 
-def _request_protected_instruction_approval(reasons: list[str], task_id: str = "default") -> str | None:
-    """Ask the human to approve a write to protected instruction file(s); ``None`` when approved.
+def _hermes_config_candidates(filepath: str, task_id: str) -> set[str]:
+    """Normalized / resolved / realpath forms of *filepath* for config matching."""
+    raw = os.path.normpath(_expand_tilde(filepath))
+    resolved = _resolved_or_raw(filepath, task_id)
+    out = {raw, resolved}
+    for item in (raw, resolved):
+        try:
+            out.add(os.path.realpath(item))
+        except Exception:
+            pass
+    return out
+
+
+def _is_hermes_config_path(filepath: str, task_id: str = "default") -> bool:
+    """True when *filepath* is the live Hermes ``config.yaml`` (settings file)."""
+    hermes_config = _get_hermes_config_resolved()
+    if not hermes_config:
+        return False
+    wanted = {hermes_config}
+    try:
+        wanted.add(os.path.realpath(hermes_config))
+    except Exception:
+        pass
+    return bool(wanted & _hermes_config_candidates(filepath, task_id))
+
+
+def _request_always_ask_write_approval(
+    reasons: list[str],
+    *,
+    pattern_key: str,
+    description: str,
+    blocked_subject: str,
+    task_id: str = "default",
+) -> str | None:
+    """Ask the human to approve a write; ``None`` when approved.
 
     Deliberately NOT routed through ``_run_approval_gate`` (honors --yolo and
     allowlists): this gate is one-operation approval EVERY time, no persisted
     scope, fail-closed without a human channel.
     """
     targets = ", ".join(dict.fromkeys(reasons))
-    description = (
-        f"Write to protected agent-instruction file(s): {targets}. "
-        "These files steer future agent behavior; approval is always "
-        "required (not bypassed by auto-approve).")
     display = f"<write to {targets}>"
     blocked = (
-        f"BLOCKED: write to protected agent-instruction file(s) ({targets}) "
+        f"BLOCKED: {blocked_subject} ({targets}) "
         "{why} The user has NOT consented to this write. Do NOT retry it or "
         "attempt the same edit via another path (terminal, execute_code, "
         "etc.).")
@@ -297,8 +322,8 @@ def _request_protected_instruction_approval(reasons: list[str], task_id: str = "
     if notify_cb is not None:
         approval_data = {
             "command": display,
-            "pattern_key": "protected_instruction_file",
-            "pattern_keys": ["protected_instruction_file"],
+            "pattern_key": pattern_key,
+            "pattern_keys": [pattern_key],
             "description": description,
             "allow_permanent": False,
             "allow_session": False}
@@ -329,6 +354,44 @@ def _request_protected_instruction_approval(reasons: list[str], task_id: str = "
     if not timed and choice in {"once", "session", "always"}:
         return None
     return timed_out if timed else denied
+
+
+def _request_protected_instruction_approval(reasons: list[str], task_id: str = "default") -> str | None:
+    """Ask the human to approve a write to protected instruction file(s); ``None`` when approved."""
+    targets = ", ".join(dict.fromkeys(reasons))
+    return _request_always_ask_write_approval(
+        reasons,
+        pattern_key="protected_instruction_file",
+        description=(
+            f"Write to protected agent-instruction file(s): {targets}. "
+            "These files steer future agent behavior; approval is always "
+            "required (not bypassed by auto-approve)."),
+        blocked_subject="write to protected agent-instruction file(s)",
+        task_id=task_id,
+    )
+
+
+def _check_hermes_config_write(paths: list[str], task_id: str = "default") -> str | None:
+    """Gate a write/patch touching the live Hermes ``config.yaml``.
+
+    Settings changes must land in that file, but approval is requested
+    BEFORE the edit — never a post-hoc "write refused" after the attempt.
+    Always-ask, even under --yolo: ``approvals.mode`` lives here.
+    """
+    targets = [p for p in paths if _is_hermes_config_path(p, task_id)]
+    if not targets:
+        return None
+    display = ", ".join(dict.fromkeys(targets))
+    return _request_always_ask_write_approval(
+        targets,
+        pattern_key="hermes_config_write",
+        description=(
+            f"Write to Hermes settings file: {display}. "
+            "This is the live config.yaml (model, approvals, security). "
+            "Approval is required BEFORE the edit; not bypassed by auto-approve."),
+        blocked_subject="write to Hermes settings file",
+        task_id=task_id,
+    )
 
 
 def _check_protected_instruction_write(paths: list[str], task_id: str = "default") -> str | None:

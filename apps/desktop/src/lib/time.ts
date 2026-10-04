@@ -2,6 +2,30 @@
 // per-render) + relative-time helpers. Every surface that shows a timestamp or
 // an age pulls from here so the rendered strings stay consistent app-wide.
 
+export const SYDNEY_TZ = 'Australia/Sydney'
+export const SYDNEY_STAMP_LABEL = 'dd:mm:yy hh:mm:ss'
+
+/** Australia/Sydney stamp: day:month:year hours:minutes:seconds. */
+export function formatSydneyStamp(ms: number): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: SYDNEY_TZ,
+      year: '2-digit',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23'
+    })
+      .formatToParts(new Date(ms))
+      .filter(part => part.type !== 'literal')
+      .map(part => [part.type, part.value])
+  ) as Record<string, string>
+
+  return `${parts.day}:${parts.month}:${parts.year} ${parts.hour}:${parts.minute}:${parts.second}`
+}
+
 export const SECOND = 1000
 export const MINUTE = 60_000
 export const HOUR = 3_600_000

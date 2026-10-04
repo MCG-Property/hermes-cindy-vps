@@ -13,6 +13,8 @@ import dataclasses
 import json
 import logging
 import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
@@ -79,6 +81,33 @@ _IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
 # Storage causes that clear on their own (one session's lease/compression, not the store): the
 # home-channel notice appends the operator restart tail for every OTHER cause.
 _SELF_CLEARING_STORAGE_CAUSES = frozenset({"compression", "compression_closed", "turn_lease"})
+
+
+_SYDNEY_TZ = ZoneInfo("Australia/Sydney")
+
+
+def _format_gateway_lifecycle_time(value: Any) -> str:
+    """Format lifecycle timestamps as Sydney local time, 24-hour DD/MM/YYYY."""
+    try:
+        return datetime.fromtimestamp(float(value), tz=_SYDNEY_TZ).strftime("%d:%m:%y %H:%M:%S")
+    except (TypeError, ValueError, OSError, OverflowError):
+        return datetime.now(tz=_SYDNEY_TZ).strftime("%d:%m:%y %H:%M:%S")
+
+
+def _gateway_healthy_message(reason: str, when: str) -> str:
+    return (
+        "GATEWAY HEALTHY\n\n"
+        f"Gateway restarted successfully.\nReason: {reason}\nTime: {when}\n\n"
+        "GATEWAY HEALTHY"
+    )
+
+
+def _gateway_unhealthy_message(reason: str, when: str) -> str:
+    return (
+        "GATEWAY UNHEALTHY\n\n"
+        f"Gateway could not be restarted.\nReason: {reason}\nTime: {when}\n\n"
+        "GATEWAY UNHEALTHY"
+    )
 
 # Durable async-delegation claim transitions: kind -> (tools.async_delegation function, failure log).
 _DURABLE_CLAIM_OPS = {
@@ -810,6 +839,9 @@ class GatewayNotificationsMixin:
         notify_path = _hermes_home / ".restart_notify.json"
         if not notify_path.exists():
             return None
+        # A healthy receipt is valid only after at least one adapter has connected.
+        if not self.adapters:
+            return None
         try:
             data = json.loads(notify_path.read_text(encoding="utf-8-sig"))
             platform_str = data.get("platform")
@@ -837,8 +869,12 @@ class GatewayNotificationsMixin:
                 for field in ("user_id", "scope_id"):
                     if data.get(field):
                         metadata[field] = str(data[field])
+            requested_at = data.get("requested_at")
+            reason = data.get("reason") or "gateway restart requested"
+            when = _format_gateway_lifecycle_time(requested_at)
+            message = _gateway_healthy_message(reason, when)
             result = await transport.send(
-                platform, str(chat_id), t("gateway.startup.restarted"),
+                platform, str(chat_id), message,
                 metadata=_non_conversational_metadata(metadata, platform=platform),
             )
             # adapter.send() catches provider errors (e.g. "Chat not found") and returns
@@ -854,7 +890,93 @@ class GatewayNotificationsMixin:
             logger.warning("Restart notification failed: %s", e)
             return None
         finally:
-            notify_path.unlink(missing_ok=True)
+            # Remove the one-shot marker only after a successful send; failed delivery can retry.
+            if notify_path.exists() and 'result' in locals() and not _send_failed(result):
+                notify_path.unlink(missing_ok=True)
+
+    async def _send_gateway_unhealthy_notification(self, reason: Optional[str]) -> set[tuple[str, str, Optional[str]]]:
+        """Send one unhealthy lifecycle notice before a non-recoverable gateway exit."""
+        from gateway.run import _hermes_home, _non_conversational_metadata
+
+        when = _format_gateway_lifecycle_time(time.time())
+        payload = {"state": "unhealthy", "reason": reason or "gateway restart failed"}
+        marker = _hermes_home / ".gateway_lifecycle_last.json"
+        try:
+            previous = json.loads(marker.read_text(encoding="utf-8")) if marker.exists() else None
+        except Exception:
+            previous = None
+        if previous == payload:
+            logger.info("Duplicate unhealthy gateway lifecycle notice suppressed")
+            return set()
+        message = _gateway_unhealthy_message(payload["reason"], when)
+        delivered: set[tuple[str, str, Optional[str]]] = set()
+        for platform, _platform_cfg, home, transport in self._home_channel_transports():
+            try:
+                metadata = self._thread_metadata_for_target(
+                    platform, home.chat_id, home.thread_id, adapter=transport.adapter,
+                )
+                result = await transport.send(
+                    platform, str(home.chat_id), message,
+                    metadata=_non_conversational_metadata(metadata, platform=platform),
+                )
+                if _send_failed(result):
+                    logger.warning(
+                        "Unhealthy gateway notification failed for %s:%s: %s",
+                        platform.value, home.chat_id, _send_error(result),
+                    )
+                    continue
+                delivered.add(_notice_target_key(platform.value, home.chat_id, home.thread_id))
+            except Exception as exc:
+                logger.warning(
+                    "Unhealthy gateway notification failed for %s:%s: %s",
+                    platform.value, home.chat_id, exc,
+                )
+        if delivered:
+            try:
+                marker.write_text(json.dumps(payload), encoding="utf-8")
+            except Exception:
+                logger.debug("Could not persist lifecycle notification dedup marker", exc_info=True)
+        return delivered
+
+    async def _notify_gateway_unhealthy(self, reason: str) -> None:
+        """Alert the Photon home channel that the gateway is stuck in an unrecoverable state
+        (e.g. the restart-loop breaker tripped). Unlike the routine restart/online notices this is
+        NOT gated by ``gateway_restart_notification`` -- it's the one alert meant to always reach
+        the user, precisely because it means normal restarts aren't fixing things on their own.
+        Debounced to at most once per hour so a genuine crash loop doesn't spam on every boot
+        attempt; best-effort, never raises."""
+        from gateway.delivery import resolve_delivery_transport
+        from gateway.run import _hermes_home
+        marker = _hermes_home / ".gateway_unhealthy_notified.json"
+        try:
+            last = json.loads(marker.read_text(encoding="utf-8")).get("ts", 0)
+            if time.time() - float(last) < 3600:
+                return
+        except Exception:
+            pass
+        try:
+            platform = Platform("photon")
+        except Exception:
+            logger.warning("Gateway unhealthy (%s) but Photon is not a registered platform.", reason)
+            return
+        home = self.config.get_home_channel(platform)
+        if not home or not home.chat_id:
+            logger.warning("Gateway unhealthy (%s) but no Photon home channel is configured to alert.", reason)
+            return
+        transport = resolve_delivery_transport(platform, self.config, self.adapters)
+        if transport is None:
+            logger.warning("Gateway unhealthy (%s) but no live Photon transport to alert through.", reason)
+            return
+        message = (
+            f"🛑 Hermes gateway is unhealthy and could not recover automatically: {reason}. "
+            "Manual intervention is needed."
+        )
+        sent = await self._send_home_channel_message(
+            platform, home, transport, message, "Gateway-unhealthy alert failed for %s:%s: %s",
+        )
+        if sent:
+            with suppress(Exception):
+                marker.write_text(json.dumps({"ts": time.time(), "reason": reason}), encoding="utf-8")
 
     def _home_channel_transports(self):
         """Yield ``(platform, platform_cfg, home, transport)`` for every home channel with a live transport."""

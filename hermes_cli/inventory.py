@@ -153,10 +153,12 @@ def build_models_payload(
             metadata_config = load_config_readonly()
         except Exception:
             metadata_config = None
+    if featured:
+        # Featured first so a large OpenRouter catalog can cheapen capabilities
+        # (only the shortlist does per-model models.dev lookups).
+        _apply_featured(rows, current_model=ctx.current_model, metadata_config=metadata_config)
     if capabilities:
         _apply_capabilities(rows, metadata_config=metadata_config)
-    if featured:
-        _apply_featured(rows, metadata_config=metadata_config)
     _apply_custom_aliases(rows)
     from hermes_cli.models_validate import drop_unofferable_model_ids
 
@@ -330,7 +332,14 @@ def _apply_capabilities(rows: list[dict], *, metadata_config: dict | None = None
         slug = row.get("slug") or ""
         caps: dict[str, dict[str, Any]] = {}
         read_reasoning_catalog = _reasoning_catalog_reader(slug.lower())
-        for model in row.get("models") or []:
+        models = row.get("models") or []
+        priority = set(row.get("featured_models") or [])
+        cheap = len(models) > 80 and bool(priority)
+
+        for model in models:
+            if cheap and model not in priority:
+                caps[model] = {"fast": bool(model_supports_fast_mode(model)), "reasoning": True}
+                continue
             reasoning = True
             if get_model_capabilities is not None and slug:
                 try:
@@ -368,18 +377,34 @@ def _apply_capabilities(rows: list[dict], *, metadata_config: dict | None = None
 _FEATURED_PER_LAB = 5
 
 
-def _apply_featured(rows: list[dict], *, metadata_config: dict | None = None) -> None:
+def _apply_featured(rows: list[dict], current_model: str = "", *, metadata_config: dict | None = None) -> None:
     """Attach a ``featured_models`` shortlist to each aggregator row: newest ``_FEATURED_PER_LAB`` per
     vendor by models.dev ``release_date`` (ranked within the row, never vs. today, so it is stable);
-    ties keep curated order. Non-aggregators get an empty list and keep top-N behaviour."""
+    ties keep curated order. Non-aggregators get an empty list and keep top-N behaviour.
+
+    OpenRouter is special: the live catalog is hundreds of ids. Using 5-per-lab across that dump
+    produced 100+ "featured" rows, which made the Desktop chat picker spin and fail to land on
+    the current model. Featured stays the curated agentic shortlist plus the active pick; search
+    still sees every live id on ``models``.
+    """
     try:
         from agent.models_dev import get_model_info
     except Exception:
         get_model_info = None  # type: ignore[assignment]
 
+    current = str(current_model or "").strip()
     for row in rows:
         slug = str(row.get("slug") or "").strip().lower()
         models = row.get("models") or []
+
+        if slug == "openrouter":
+            from hermes_cli.models import OPENROUTER_MODELS
+            present = {str(mid) for mid in models}
+            featured = [mid for mid, _ in OPENROUTER_MODELS if mid in present]
+            if current and current in present and current not in featured:
+                featured.insert(0, current)
+            row["featured_models"] = featured
+            continue
 
         by_lab: dict[str, list[tuple[int, str, str]]] = {}  # only multi-lab aggregators get a shortlist
         for pos, model in enumerate(models):

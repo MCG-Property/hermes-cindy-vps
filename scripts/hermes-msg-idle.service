@@ -1,0 +1,8 @@
+[Unit]
+Description=Hermes messaging idle tick (keep gateway; park idle Chrome)
+[Service]
+Type=oneshot
+ExecStart=/home/hermes/bin/hermes-msg idle
+Environment=HERMES_HOME=/home/hermes/.hermes
+Environment=HERMES_MSG_IDLE_MINUTES=20
+Environment=HERMES_CHROME_IDLE_SECONDS=120

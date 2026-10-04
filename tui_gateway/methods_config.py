@@ -539,5 +539,78 @@ def _(rid, params: dict) -> dict:
         return _ok(rid, {"ok": False, "error": redact_debug_support_text(e)})
 
 
+@method("spend.snapshot")
+def _(rid, params: dict) -> dict:
+    """Desktop status-bar spend: session / hour / day / last request / reset + 24h history."""
+    session_id = str((params or {}).get("session_id") or "").strip()
+    try:
+        import sys
+        from pathlib import Path
+        scripts = Path("/home/hermes/.hermes/scripts")
+        if str(scripts) not in sys.path:
+            sys.path.insert(0, str(scripts))
+        from spend_tracker import snapshot_with_history
+        return _ok(rid, snapshot_with_history(session_id))
+    except Exception as exc:
+        return _err(rid, 5601, f"spend snapshot failed: {exc}")
+
+
+def _desktop_plugin_id(raw: str) -> str:
+    import re
+
+    name = str(raw or "").strip()
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", name):
+        raise ValueError("plugin id must be kebab-case")
+    return name
+
+
+def _desktop_plugins_root():
+    from pathlib import Path
+
+    return Path("/home/hermes/.hermes/desktop-plugins")
+
+
+@method("desktop.plugin.list")
+def _(rid, params: dict) -> dict:
+    """Ids and hashes of VPS desktop plugins the Mac client can pull."""
+    import hashlib
+
+    root = _desktop_plugins_root()
+    items = []
+    if root.is_dir():
+        for child in sorted(root.iterdir()):
+            plugin = child / "plugin.js"
+            if not child.is_dir() or not plugin.is_file():
+                continue
+            try:
+                _desktop_plugin_id(child.name)
+                text = plugin.read_text(encoding="utf-8")
+            except (OSError, ValueError):
+                continue
+            items.append({
+                "id": child.name,
+                "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            })
+    return _ok(rid, {"plugins": items})
+
+
+@method("desktop.plugin.source")
+def _(rid, params: dict) -> dict:
+    """Return a VPS desktop-plugin.js so the Mac client can pull it locally."""
+    import hashlib
+
+    try:
+        raw = _desktop_plugin_id((params or {}).get("id"))
+    except ValueError as exc:
+        return _err(rid, 5602, str(exc))
+    path = _desktop_plugins_root() / raw / "plugin.js"
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return _err(rid, 5603, f"plugin source missing: {exc}")
+    digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    return _ok(rid, {"id": raw, "sha256": digest, "content": content, "name": f"{raw}/plugin.js"})
+
+
 def register(server) -> None:
     bind_module(globals(), server, skip=("_",))

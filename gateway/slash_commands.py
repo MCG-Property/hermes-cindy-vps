@@ -560,8 +560,11 @@ class GatewaySlashCommandsMixin(
 
         def _dedup_payload() -> dict:
             # Platform + update_id of the triggering /restart, for redelivery detection.
-            data = {"platform": event.source.platform.value if event.source.platform else None,
-                    "requested_at": time.time()}
+            data = {
+                "platform": event.source.platform.value if event.source.platform else None,
+                "requested_at": time.time(),
+                "reason": "gateway restart requested by /restart command",
+            }
             if event.platform_update_id is not None:
                 data["update_id"] = event.platform_update_id
             return data
@@ -582,9 +585,9 @@ class GatewaySlashCommandsMixin(
         # Track sessions that were active at shutdown for stuck-loop detection (#7536). On each restart, the
         # counter increments for sessions that were running. If a session hits the threshold (3 consecutive
         # restarts while active), the next startup auto-suspends it — breaking the loop.
-        if active_agents:
-            return t("gateway.draining", count=active_agents)
-        return EphemeralReply(t("gateway.restart.restarting"))
+        # Restart lifecycle messages are intentionally suppressed. A single healthy receipt is
+        # emitted only after the replacement gateway completes startup successfully.
+        return ""
 
     async def _handle_version_command(self, event: MessageEvent) -> str:
         """Handle /version — show the running Hermes Agent version."""

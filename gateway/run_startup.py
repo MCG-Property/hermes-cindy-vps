@@ -296,7 +296,20 @@ class GatewayStartupMixin:
 
         async def _boot_sends() -> None:
             await self._send_restart_notification()
-            if planned_restart_notification_pending:
+            if not planned_restart_notification_pending:
+                # No planned-restart marker (external restart: systemctl, crash-restart, cold
+                # boot, etc.) -- still owed a "back online" notice wherever
+                # gateway_restart_notification is set, so it isn't only in-chat /restart that
+                # gets one. Seed an empty marker so the normal replay path (which already retries
+                # via _install_reconnected_adapter for a platform still reconnecting at boot --
+                # e.g. Photon's sidecar handshake) picks it up exactly like a planned restart would.
+                with suppress(Exception):
+                    from gateway.run import _planned_restart_notification_path
+                    from utils import atomic_json_write
+                    path = _planned_restart_notification_path()
+                    if not path.exists():
+                        atomic_json_write(path, {"delivered_targets": []}, indent=None)
+            with suppress(Exception):
                 await self._replay_pending_planned_restart_notification()
             await self._redeliver_claimed_obligations(claimed)
 
@@ -575,6 +588,11 @@ class GatewayStartupMixin:
                 from gateway import restart_loop_guard as _rlg
                 _max_restarts, _window, _max_gap = self._restart_loop_guard_config()
                 if _rlg.check_and_record(_max_restarts, _window, max_gap_seconds=_max_gap):
+                    with suppress(Exception):
+                        asyncio.create_task(self._notify_gateway_unhealthy(
+                            "restart loop detected (too many restarts in a short window); "
+                            "auto-resume is paused for this boot"
+                        ))
                     return None
             except Exception as exc:  # noqa: BLE001 — breaker must fail OPEN
                 logger.debug("Restart-loop guard check skipped: %s", exc)

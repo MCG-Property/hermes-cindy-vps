@@ -3,6 +3,7 @@ import { useStore } from '@nanostores/react'
 import { Button } from '@/components/ui/button'
 import { Codicon } from '@/components/ui/codicon'
 import { Tip, TipKeybindLabel } from '@/components/ui/tooltip'
+import { ChromeSlot } from '@/contrib/chrome-slot'
 import { useI18n } from '@/i18n'
 import { triggerHaptic } from '@/lib/haptics'
 import { Ear, EarOff, iconSize, Layers3, Loader2, Square } from '@/lib/icons'
@@ -118,10 +119,10 @@ export function ComposerControls({
       {minimal ? null : (
         <>
           {hideModelPill ? null : (
-            <>
+            <ChromeSlot id="model-pill">
               <ModelPill compact={compactModelPill} disabled={disabled} model={state.model} />
               {compactModelPill ? null : <ReasoningPill disabled={disabled} model={state.model} />}
-            </>
+            </ChromeSlot>
           )}
           {voiceControls}
         </>

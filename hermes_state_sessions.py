@@ -911,9 +911,13 @@ class SessionSessionsMixin:
     def set_session_archived(self, session_id: str, archived: bool) -> bool:
         """Soft-hide (or unhide) a session and its compression lineage; messages are kept.
         This is the DELIBERATE archive (user, CLI, API): it clears the ``auto_archived``
-        provenance, so re-activation never un-hides it on the user's behalf."""
-        return self._set_lineage_column(
+        provenance, so re-activation never un-hides it on the user's behalf. Also
+        stamps/clears archived_at so callers can tell 'archived when' from the bare bool."""
+        ok = self._set_lineage_column(
             "archived", session_id, int(archived), extra_set_sql=", auto_archived = 0")
+        if ok:
+            self._set_lineage_column("archived_at", session_id, time.time() if archived else None)
+        return ok
 
     def _auto_archive_lineage(self, session_id: str) -> bool:
         """The idle sweep's archive: like :meth:`set_session_archived` but stamps

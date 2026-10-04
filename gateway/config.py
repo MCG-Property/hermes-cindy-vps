@@ -1,5 +1,5 @@
 """Gateway configuration: connected platforms, home channels, session reset
-policies and delivery preferences, loaded from config.yaml / gateway.json / env.
+policies and delivery preferences, loaded from config.yaml / environment.
 """
 
 import contextlib
@@ -837,24 +837,16 @@ class GatewayConfig:
 
 
 def load_gateway_config() -> GatewayConfig:
-    """Load gateway configuration. Priority: env > ~/.hermes/config.yaml > legacy gateway.json > defaults."""
+    """Load gateway configuration from config.yaml and environment overrides."""
     from gateway import config_loader
 
     _home = get_hermes_home()
-    gw_data = config_loader.load_legacy_gateway_json(_home)
+    gw_data = {}
     try:
         config_loader.load_yaml_layer(_home, gw_data)
     except Exception as e:
         logger.warning(
-            # DingTalk settings → env vars: migrated to the dingtalk plugin's apply_yaml_config_fn hook
-            # (plugins/platforms/dingtalk/adapter.py). #41112 / #3823.
-            # Mattermost config bridge moved into plugins/platforms/mattermost/
-            # adapter.py::_apply_yaml_config — see #25443 (apply_yaml_config_fn).
-            # Matrix settings → env vars: migrated to the matrix plugin's apply_yaml_config_fn hook
-            # (plugins/platforms/matrix/adapter.py). #41112 / #3823.
-            # Feishu settings → env vars: migrated to the feishu plugin's apply_yaml_config_fn hook
-            # (plugins/platforms/feishu/adapter.py). #41112 / #3823.
-            "Failed to process config.yaml — falling back to .env / gateway.json values. "
+            "Failed to process config.yaml. Using defaults and environment overrides. "
             "Check %s for syntax errors. Error: %s",
             _home / "config.yaml", e,
         )

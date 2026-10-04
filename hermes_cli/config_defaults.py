@@ -868,8 +868,8 @@ DEFAULT_CONFIG = {
         # (final raw only) | "error" (raw only on non-zero exit) | "off".
         "background_process_notifications": "concise",
         "streaming": False,
-        "timestamps": False,      # message timestamps (CLI labels, TUI rows, desktop transcript)
-        "timestamp_format": "%H:%M",  # strftime format, e.g. "%b-%d %H:%M"
+        "timestamps": True,      # message timestamps (CLI labels, TUI rows, desktop transcript)
+        "timestamp_format": "%d:%m:%y %H:%M:%S",  # AEST Sydney: dd:mm:yy hh:mm:ss
         "final_response_markdown": "strip",  # render | strip | raw
         # Preserve recent classic-CLI output across Ctrl+L, /redraw and resize clears; disable if an
         # emulator misbehaves with replayed scrollback.

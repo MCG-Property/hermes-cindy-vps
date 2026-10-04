@@ -49,8 +49,8 @@ def _match(s: dict, query: str) -> bool:
     )
 
 
-# Layout: [arrow 3] [title/preview flexible] [status 5] [msgs 5] [active 12] [src 6] [id 18]
-_FIXED_COLS = 3 + 5 + 2 + 5 + 2 + 12 + 6 + 18 + 6
+# Layout: [arrow 3] [title/preview flexible] [status 5] [msgs 5] [active 22] [src 6] [id 18]
+_FIXED_COLS = 3 + 5 + 2 + 5 + 2 + 22 + 6 + 18 + 6
 
 
 def _format_row(s: dict, max_x: int) -> str:
@@ -59,7 +59,7 @@ def _format_row(s: dict, max_x: int) -> str:
     name = ((s.get("title") or "").strip() or (s.get("preview") or "").strip())[:name_width] or sid
     return (
         f"{name:<{name_width}}  {_session_status_tag(s.get('_status')):<5}  "
-        f"{_msgs_str(s):>5}  {_relative_time(s.get('last_active'), session_id=s['id']):<10}  "
+        f"{_msgs_str(s):>5}  {_relative_time(s.get('last_active'), session_id=s['id']):<22}  "
         f"{s.get('source', '')[:6]:<5} {sid}"
     )
 
@@ -224,7 +224,7 @@ def _fallback_picker(sessions: list) -> Optional[str]:
     for i, s in enumerate(sessions):
         print(
             f"  {i + 1:>3}. {_clip(_label(s), 50):<50}  {_session_status_tag(s.get('_status')):<5}  "
-            f"{_msgs_str(s):>5}  {_relative_time(s.get('last_active'), session_id=s['id']):<10}  {s.get('source', '')[:6]}"
+            f"{_msgs_str(s):>5}  {_relative_time(s.get('last_active'), session_id=s['id']):<22}  {s.get('source', '')[:6]}"
         )
     while True:
         try:

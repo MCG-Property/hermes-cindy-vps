@@ -952,7 +952,7 @@ export function ModelSettings({ onMainModelChanged, scopeProfile, subpage }: Mod
               <SelectTrigger className={cn('min-w-40', CONTROL_TEXT)}>
                 <SelectValue placeholder={m.provider} />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent searchable>
                 {mainProviderOptions.map(provider => (
                   <SelectItem key={provider.slug || 'none'} value={provider.slug || 'none'}>
                     {provider.name}
@@ -998,6 +998,7 @@ export function ModelSettings({ onMainModelChanged, scopeProfile, subpage }: Mod
                   onValueChange={setSelectedModel}
                   provider={selectedProviderRow}
                   providerSlug={selectedProvider}
+                  searchable
                   value={selectedModel}
                 />
                 <Button
@@ -1164,7 +1165,7 @@ export function ModelSettings({ onMainModelChanged, scopeProfile, subpage }: Mod
                               >
                                 <SelectValue placeholder={m.provider} />
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent searchable>
                                 {providerOptions.map(provider => (
                                   <SelectItem key={provider.slug || 'none'} value={provider.slug || 'none'}>
                                     {provider.name}
@@ -1179,6 +1180,7 @@ export function ModelSettings({ onMainModelChanged, scopeProfile, subpage }: Mod
                               onValueChange={value => setAuxDraft(prev => ({ ...prev, model: value }))}
                               provider={findCatalogProvider(providers, auxDraft.provider)}
                               providerSlug={auxDraft.provider}
+                              searchable
                               value={auxDraft.model}
                             />
                           </div>
@@ -1259,7 +1261,7 @@ export function ModelSettings({ onMainModelChanged, scopeProfile, subpage }: Mod
               <SelectTrigger className={cn('min-w-40', CONTROL_TEXT)}>
                 <SelectValue placeholder={m.moaPreset} />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent searchable>
                 {Object.keys(moa.presets).map(name => (
                   <SelectItem key={name} value={name}>
                     {name}
@@ -1383,7 +1385,7 @@ export function ModelSettings({ onMainModelChanged, scopeProfile, subpage }: Mod
                       <SelectTrigger className={cn('min-w-32', CONTROL_TEXT)}>
                         <SelectValue placeholder={m.provider} />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent searchable>
                         {withActive(
                           moaSlotProviderOptions.map(p => p.slug || 'none'),
                           slot.provider
@@ -1412,6 +1414,7 @@ export function ModelSettings({ onMainModelChanged, scopeProfile, subpage }: Mod
                       provider={findCatalogProvider(providers, slot.provider)}
                       providerSlug={slot.provider}
                       value={slot.model}
+                      searchable
                     />
                     <Button
                       disabled={currentMoaPreset.reference_models.length <= 1 || applying}
@@ -1471,7 +1474,7 @@ export function ModelSettings({ onMainModelChanged, scopeProfile, subpage }: Mod
                     <SelectTrigger className={cn('min-w-32', CONTROL_TEXT)}>
                       <SelectValue placeholder={m.provider} />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent searchable>
                       {withActive(
                         moaSlotProviderOptions.map(p => p.slug || 'none'),
                         currentMoaPreset.aggregator.provider
@@ -1498,6 +1501,7 @@ export function ModelSettings({ onMainModelChanged, scopeProfile, subpage }: Mod
                     provider={findCatalogProvider(providers, currentMoaPreset.aggregator.provider)}
                     providerSlug={currentMoaPreset.aggregator.provider}
                     value={currentMoaPreset.aggregator.model}
+                    searchable
                   />
                 </div>
               }

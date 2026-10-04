@@ -438,6 +438,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     rewind_count INTEGER NOT NULL DEFAULT 0,
     archived INTEGER NOT NULL DEFAULT 0,
     auto_archived INTEGER NOT NULL DEFAULT 0,
+    archived_at REAL,
     pinned INTEGER NOT NULL DEFAULT 0,
     hidden INTEGER NOT NULL DEFAULT 0,
     last_read_at REAL,
@@ -629,6 +630,25 @@ CREATE INDEX IF NOT EXISTS idx_session_model_usage_session ON session_model_usag
 CREATE INDEX IF NOT EXISTS idx_session_model_usage_model ON session_model_usage(model);
 CREATE INDEX IF NOT EXISTS idx_async_delegations_delivery
     ON async_delegations(delivery_state, completed_at);
+
+-- Durable "archived while you were away" notices, grouped per (source, user_id) -- the identity
+-- unit for the archive-restore feature (session_key/chat_id/thread_id are finer-grained and NOT
+-- part of grouping: one person's several topic-sessions on one platform collapse into one row).
+-- Must be DB-backed (not an in-memory per-session flag) so it survives a gateway restart -- the
+-- notify window can span hours or days between when a session is archived and the user's next
+-- message on that platform.
+CREATE TABLE IF NOT EXISTS pending_archive_notices (
+    source TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    -- 'pending' = archived, not yet shown to the user.
+    -- 'awaiting_reply' = shown once; armed for exactly the next inbound message from this identity.
+    status TEXT NOT NULL DEFAULT 'pending',
+    -- JSON array of {"session_id", "code", "title", "source", "archived_at"} in archive order.
+    entries_json TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    shown_at REAL,
+    PRIMARY KEY (source, user_id)
+);
 """
 
 # Indexes on later-added columns must run AFTER _reconcile_columns(), or executescript fails on legacy DBs.

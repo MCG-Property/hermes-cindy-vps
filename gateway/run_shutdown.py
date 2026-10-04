@@ -1026,6 +1026,11 @@ class GatewayShutdownMixin:
 
         Called at the start of stop() while adapters are connected; send failures never block shutdown.
         """
+        # Lifecycle shutdown/restart notices are intentionally silent. The only user-facing
+        # lifecycle message is the post-boot GATEWAY HEALTHY receipt emitted after startup
+        # completes successfully.
+        return
+
         restart_source = self._restart_command_source if self._restart_requested else None
         msg = t("gateway.shutdown.notice_restart" if self._restart_requested else "gateway.shutdown.notice_shutdown")
         restart_key = None
@@ -1885,9 +1890,9 @@ class GatewayShutdownMixin:
         if callable(stop_watchdog):
             await stop_watchdog()
         await self._cancel_secondary_profile_reconnect_tasks()
-        # Notify all chats with active agents BEFORE draining — adapters are still connected here.
-        await self._notify_active_sessions_of_shutdown()
-        logger.info("Shutdown phase: notify_active_sessions done at +%.2fs", ctx.elapsed())
+        # Suppress all pre-shutdown/restarting messages. Lifecycle status is reported only after
+        # a successful replacement boot (or by the failure path if restart cannot recover).
+        logger.info("Shutdown phase: active-session lifecycle notifications suppressed")
 
     async def _stop_drain_active_work(self, timeout: float, ctx: "GatewayShutdownMixin._StopContext") -> None:
         """Pre-mark resume_pending, drain agents/cron/API work into ``ctx``."""
@@ -1973,12 +1978,8 @@ class GatewayShutdownMixin:
         # Off-loop: the sweep does blocking kills that must not monopolize the event loop (#116327).
         _interrupted_cron_jobs = await GatewayRunner._stop_kill_tool_subprocesses_off_loop("post-interrupt")
         logger.info("Shutdown phase: post-interrupt tool kill done at +%.2fs", ctx.elapsed())
-        # Last window with the transport up (the cron worker's own notice arrives after teardown).
-        with _log_suppressed(logging.DEBUG, "Cron interrupt notification failed: %s"):
-            # The cron worker whose run we just killed will try to deliver its own "interrupted" notice, but
-            # it gets there after the adapter teardown below and the message is lost (#82232).
-            await self._notify_interrupted_cron_jobs(_interrupted_cron_jobs)
-        logger.info("Shutdown phase: cron interrupt notices done at +%.2fs", ctx.elapsed())
+        # Suppress all shutdown/restart notices, including interrupted cron notices.
+        logger.info("Shutdown phase: cron lifecycle notifications suppressed at +%.2fs", ctx.elapsed())
 
     async def _stop_finalize_agents_and_adapters(self, ctx: "GatewayShutdownMixin._StopContext") -> None:
         """Detached restart launch, agent finalization, idle-cache cleanup, adapter teardown."""
@@ -2171,6 +2172,7 @@ class GatewayShutdownMixin:
                     _planned_restart_notification_path(),
                     {
                         "requested_at": time.time(),
+                        "reason": self._exit_reason or "gateway restart requested",
                         "via_service": bool(self._restart_via_service),
                         "detached": bool(self._restart_detached),
                     },

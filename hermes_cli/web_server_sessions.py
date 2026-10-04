@@ -256,9 +256,24 @@ def _maybe_auto_archive_for_profile(profile: Optional[str]) -> None:
             return
         db = _open_session_db_for_profile(profile, read_only=False)
         try:
-            db.maybe_auto_archive(
-                idle_days=float(cfg.get("auto_archive_days", 3)),
-                min_interval_hours=int(cfg.get("min_interval_hours", 24)))
+            # Shares the gateway housekeeping chore's own gate/state_meta key
+            # (last_auto_archive_notify) so the two processes never double-sweep the same
+            # state.db, and uses the detailed sweep so sessions archived here (e.g. `hermes serve`
+            # runs no gateway housekeeping thread of its own) still get a restore-notice recorded.
+            try:
+                last = float(db.get_meta("last_auto_archive_notify") or 0.0)
+            except (TypeError, ValueError):
+                last = 0.0
+            min_interval_h = int(cfg.get("min_interval_hours", 24))
+            if last and time.time() - last < min_interval_h * 3600:
+                return
+            from gateway.archive_notify import record_archive_notices
+            archived = db.archive_stale_sessions_detailed(
+                idle_days=float(cfg.get("auto_archive_days", 3)), exclude_pinned=True,
+            )
+            db.set_meta("last_auto_archive_notify", str(time.time()))
+            if archived:
+                record_archive_notices(db, archived)
         finally:
             db.close()
     except Exception as exc:

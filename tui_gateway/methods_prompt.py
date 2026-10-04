@@ -609,6 +609,9 @@ def _run_after_agent_ready(
                 if session.get("_turn_cancel_requested")
                 else "Session no longer running before the agent was ready")})
             return
+    apply_confirm = globals().get("_apply_user_todo_confirmation")
+    if callable(apply_confirm):
+        apply_confirm(sid, session, text)
     _run_prompt_submit(
         rid, sid, session, text, display_kind=display_kind, display_metadata=display_metadata,
         terminal_callback=hosted_terminal_callback, turn_author=turn_author)
@@ -678,6 +681,16 @@ def _(rid, params: dict) -> dict:
     session, err = _sess_nowait(params, rid)
     if err:
         return err
+    # Cam affirming PENDING_REVIEW / naming a finished task drops it from the
+    # outstanding list before the turn runs, so the bar above the composer
+    # updates immediately.
+    if isinstance(text, str) and text.strip():
+        confirm = globals().get("_apply_user_todo_confirmation")
+        if callable(confirm):
+            try:
+                confirm(sid, session, text)
+            except Exception:
+                logger.debug("user todo confirm on submit failed", exc_info=True)
     from tools.bot_relay import DeliveryAuthor
 
     # Only the relay handler can build a DeliveryAuthor. A dict here is a client claiming a sender.

@@ -352,7 +352,7 @@ Useful flags: `--days N` (history window, default 90), `--min-count N`
 
 ## File Write Safety {#file-write-safety}
 
-Before `write_file` or `patch` touches disk, Hermes checks the target path against a denylist and an optional sandbox. Blocked writes return an error to the agent immediately — **there is no approval prompt** and no way to override from the chat UI. The model may still claim the edit succeeded; when `display.file_mutation_verifier` is on (default), trust the [file-mutation verifier footer](./configuration.md#file-mutation-verifier) over the assistant's closing summary.
+Before `write_file` or `patch` touches disk, Hermes checks the target path against a denylist and an optional sandbox. Credential and sandbox blocks return an error immediately — **there is no approval prompt** and no way to override from the chat UI. The live Hermes `config.yaml` and a few other approval-gated paths ask **before** the edit instead. The model may still claim a denied edit succeeded; when `display.file_mutation_verifier` is on (default), trust the [file-mutation verifier footer](./configuration.md#file-mutation-verifier) over the assistant's closing summary. Permission asks are not reported as post-hoc mutation failures.
 
 ### Protected paths (always blocked)
 
@@ -381,6 +381,14 @@ that used to apply. It can still carry `ProxyCommand` / `Match exec` directives
 that run commands, so the write is never silent. Non-interactive callers (ACP
 file bridge, background jobs with no human channel) fail closed. Private keys,
 `authorized_keys`, and everything else under `~/.ssh/` remain hard-blocked.
+
+**Exception — the live Hermes `config.yaml` is approval-gated, not hard-blocked.**
+Settings changes must land in that file (`~/.hermes/config.yaml`, or the
+active profile's copy). `write_file` / `patch` request permission **before**
+the edit — they do not write and then report a file-mutation-verifier failure.
+The prompt is always-ask and is not bypassed by `--yolo`, because
+`approvals.mode` lives in the same file. Non-interactive callers fail closed
+without writing.
 
 ### HERMES_WRITE_SAFE_ROOT (optional sandbox)
 

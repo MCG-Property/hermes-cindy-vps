@@ -28,7 +28,7 @@ import { useSearchParams } from "react-router";
 import { ChatWorkspacePicker } from "@/components/ChatWorkspacePicker";
 import { useI18n } from "@/i18n";
 import { api, type SessionInfo } from "@/lib/api";
-import { cn, timeAgo } from "@/lib/utils";
+import { cn, sessionListTime } from "@/lib/utils";
 
 const SESSION_LIMIT = 30;
 interface ChatSessionListProps {
@@ -209,7 +209,7 @@ export function ChatSessionList({
                 {rowLabel(s, t.sessions.untitledSession)}
               </span>
               <span className="flex w-full items-center gap-1.5 text-[0.6875rem] text-text-tertiary">
-                <span>{timeAgo(s.last_active)}</span>
+                <span>{sessionListTime(s.last_active)}</span>
                 {s.message_count > 0 && (
                   <>
                     <span aria-hidden>·</span>

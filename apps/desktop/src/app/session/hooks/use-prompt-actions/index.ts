@@ -773,7 +773,7 @@ export function usePromptActions({
   // completed work intact. During a tool it waits for the safe result boundary.
   // Returns false when the turn raced to completion so the composer can queue.
   const redirectPrompt = useCallback(
-    async (rawText: string): Promise<boolean> => {
+    async (rawText: string, options?: { interrupt?: boolean }): Promise<boolean> => {
       const text = sanitizeComposerInput(rawText).trim()
 
       // Ref, not the closure-captured prop — see cancelRun above. A redirect
@@ -842,7 +842,8 @@ export function usePromptActions({
         try {
           const result = await target.requestGateway<SessionRedirectResponse>('session.redirect', {
             session_id: id,
-            text
+            text,
+            ...(options?.interrupt ? { interrupt: true } : {})
           })
 
           if (result?.status === 'redirected') {

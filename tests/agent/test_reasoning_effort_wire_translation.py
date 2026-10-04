@@ -45,3 +45,15 @@ class TestUltraEffortWireTranslation:
     def test_non_dict_and_none_pass_through(self):
         assert _reasoning_config_for_model("m", None) is None
         assert _reasoning_config_for_model("m", "not-a-dict") == "not-a-dict"
+
+    def test_iteration_summary_clamps_ultra_like_main_loop(self):
+        """The forced summary after max iterations used to leak ``ultra`` and 400."""
+        from types import SimpleNamespace
+
+        from agent.chat_completion_helpers import _summary_reasoning_extra_body
+
+        agent = SimpleNamespace(
+            model="openai/gpt-5.6-luna",
+            reasoning_config={"enabled": True, "effort": "ultra"},
+        )
+        assert _summary_reasoning_extra_body(agent) == {"enabled": True, "effort": "max"}

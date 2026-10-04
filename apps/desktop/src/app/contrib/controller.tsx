@@ -41,6 +41,7 @@ import { Slot } from '@/contrib/react/slot'
 import { registry } from '@/contrib/registry'
 import { discoverRuntimePlugins } from '@/contrib/runtime-loader'
 import { LocalizedTabTitle, translateNow } from '@/i18n'
+import { reloadDesktopChrome, rollbackDesktopChrome } from '@/lib/desktop-chrome'
 import { NEW_SESSION_TITLE, sessionTitle as storedSessionTitle } from '@/lib/chat-runtime'
 import {
   Download,
@@ -334,6 +335,26 @@ registry.registerMany([
       label: 'Reload desktop plugins',
       keywords: ['plugins', 'reload', 'refresh', 'desktop'],
       run: () => void discoverRuntimePlugins()
+    } satisfies PaletteContribution
+  },
+  {
+    id: 'chrome.reload',
+    area: PALETTE_AREA,
+    data: {
+      id: 'chrome.reload',
+      label: 'Reload desktop chrome overlay',
+      keywords: ['chrome', 'overlay', 'css', 'reload', 'skin'],
+      run: () => void reloadDesktopChrome()
+    } satisfies PaletteContribution
+  },
+  {
+    id: 'chrome.rollback',
+    area: PALETTE_AREA,
+    data: {
+      id: 'chrome.rollback',
+      label: 'Restore last-known-good desktop chrome',
+      keywords: ['chrome', 'overlay', 'rollback', 'restore', 'safe mode'],
+      run: () => void rollbackDesktopChrome()
     } satisfies PaletteContribution
   },
   // The core `::preview{file="…"}` transcript directive — the model (or a

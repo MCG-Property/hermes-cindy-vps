@@ -754,3 +754,33 @@ export function installConsoleStamps(target = console) {
 export function writeJsonLine(payload, stream = process.stdout) {
   stream.write(`${JSON.stringify(payload)}\n`);
 }
+
+/**
+ * PAIR_ONLY exit gate: flush auth state, require a persisted identity, then
+ * exit. Returning before process.exit lets callers/tests inspect the decision.
+ *
+ * @returns {Promise<{ok: boolean, error?: string, identity?: string}>}
+ */
+export async function finalizePairOnlySession({
+  saveCreds,
+  sockUserId,
+  credsMeId,
+  exitFn = process.exit.bind(process),
+  settleMs = 1500,
+  setTimer = setTimeout,
+} = {}) {
+  try {
+    await saveCreds();
+  } catch (err) {
+    const error = err?.message || String(err);
+    exitFn(1);
+    return { ok: false, error };
+  }
+  const identity = sockUserId || credsMeId || null;
+  if (!identity) {
+    exitFn(1);
+    return { ok: false, error: 'connected_without_identity' };
+  }
+  setTimer(() => exitFn(0), settleMs);
+  return { ok: true, identity: String(identity) };
+}

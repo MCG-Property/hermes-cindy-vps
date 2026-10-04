@@ -224,8 +224,10 @@ def get_sessions(
             total = db.session_count(exclude_children=True, **scope)
             now = time.time()
             row_profile = profile_name or _cron_default_profile()
+            from hermes_cli.timefmt import format_sydney
             for s in sessions:
                 s["is_active"] = _is_active(s, now)
+                s["last_active_display"] = format_sydney(s.get("last_active") or s.get("started_at"))
                 s["profile"] = row_profile
                 s["is_default_profile"] = row_profile == "default"
                 # SQLite stores the flags as 0/1; expose real JSON booleans.

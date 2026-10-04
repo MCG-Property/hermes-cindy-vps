@@ -31,7 +31,7 @@ from gateway.run_inbound_unauthorized import (
     unauthorized_owner_hint,
 )
 from gateway.session import (
-    SessionSource, build_session_context, is_shared_multi_user_session,
+    SessionSource, _canonical_participant, build_session_context, is_shared_multi_user_session,
     neutralize_untrusted_inline_text,
 )
 from gateway.turn_lease import TurnLeaseTimeoutError
@@ -534,6 +534,62 @@ class GatewayInboundMixin:
         # Stale pending + unrelated command: the user moved on, so drop the pending state rather
         # than let the confirm block normal usage indefinitely.
         _slash_confirm_mod.clear_if_stale(_quick_key)
+        return None
+
+    # Whole-token code like "3C"/"3c" — comma/space separated multiples accepted.
+    _ARCHIVE_NOTICE_CODE_RE = re.compile(r"^\d{1,3}[A-Za-z]$")
+
+    async def _hm_archive_restore_reply(
+        self, event: "MessageEvent", source: SessionSource, _quick_key: str
+    ) -> Optional[str]:
+        """Consume a reply to a pending archive-restore notice for this identity — keyed on
+        (source.platform.value, canonical user id), NOT _quick_key/session_key, so one notice can
+        be answered from whichever topic/session the user replies in on that platform. Returns
+        None (falls through to normal turn processing) when there is no notice awaiting a reply,
+        or the text doesn't parse as a code/approve/deny — in either case the notice is resolved
+        (deleted) so it never re-arms for a later, unrelated message."""
+        if not source.platform:
+            return None
+        # Some channels (e.g. Hermes Desktop's own direct chat) never populate a per-user id --
+        # they're inherently single-operator, so "" is the shared identity for that whole source.
+        user_id = _canonical_participant(source) or ""
+        platform = source.platform.value
+        db = self._session_db
+        notice = await db.peek_pending_archive_notice(platform, user_id)
+        if notice is None or notice["status"] != "awaiting_reply":
+            return None
+
+        raw = (event.text or "").strip()
+        lowered = raw.lower()
+        entries = notice["entries"]
+        by_code = {e["code"].upper(): e for e in entries}
+
+        if lowered == "deny":
+            for e in entries:
+                await db.set_session_archived(e["session_id"], False)
+            await db.clear_archive_notice(platform, user_id)
+            return f"Restored all {len(entries)} archived session(s) from that batch."
+
+        if lowered == "approve":
+            await db.clear_archive_notice(platform, user_id)
+            return "Kept all sessions from that batch archived."
+
+        tokens = [t.strip().upper() for t in re.split(r"[,\s]+", raw) if t.strip()]
+        if tokens and all(self._ARCHIVE_NOTICE_CODE_RE.match(t) for t in tokens):
+            matched = [by_code[t] for t in tokens if t in by_code]
+            if not matched:
+                # Every token looked like a code but none matched this batch — don't silently eat
+                # an unrelated message that happens to look like one; fall through instead.
+                return None
+            for e in matched:
+                await db.set_session_archived(e["session_id"], False)
+            await db.clear_archive_notice(platform, user_id)
+            restored = ", ".join(f"{e['code']} ({e['title']})" for e in matched)
+            return f"Restored: {restored}."
+
+        # Anything else: a normal new request. The reminder was already shown once, so this
+        # decision window is resolved regardless, and the message falls through to a full turn.
+        await db.clear_archive_notice(platform, user_id)
         return None
 
     def _hm_evict_idle_stale_agent(self, _quick_key: str) -> None:
@@ -1257,8 +1313,9 @@ class GatewayInboundMixin:
     async def _hm_pending_reply_intercepts(
         self, event: "MessageEvent", source: SessionSource, _quick_key: str
     ) -> Optional[str]:
-        """Replies owned by in-flight work: pending /update prompt, clarify, slash-confirm.
-        Only events that may control the gateway (``allow_gateway_control``) can answer them."""
+        """Replies owned by in-flight work: pending /update prompt, clarify, slash-confirm,
+        archive-restore. Only events that may control the gateway (``allow_gateway_control``) can
+        answer them."""
         if not event.allow_gateway_control:
             return None
         _reply = self._hm_update_prompt_reply(event, _quick_key)
@@ -1266,6 +1323,8 @@ class GatewayInboundMixin:
             _reply = await self._hm_clarify_reply(event, source, _quick_key)
         if _reply is None:
             _reply = await self._hm_slash_confirm_reply(event, _quick_key)
+        if _reply is None:
+            _reply = await self._hm_archive_restore_reply(event, source, _quick_key)
         return _reply
 
     async def _hm_dispatch_idle_commands(

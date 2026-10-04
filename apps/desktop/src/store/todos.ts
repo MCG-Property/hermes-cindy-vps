@@ -66,10 +66,9 @@ export function todosForHydration(todos: readonly TodoItem[] | null): TodoItem[]
   return todos && !todoListActive(todos) ? [...todos] : null
 }
 
-// Once a list finishes (every item completed/cancelled), the final state
-// lingers just long enough to see the last checkmark land, then the group
-// drops out of the stack on its own.
-const FINISHED_LINGER_MS = 4_000
+// Keep task lists mounted until the user explicitly dismisses/checks off the
+// list. The messaging task panel is a durable handoff surface, not transient
+// turn status, so it must not disappear on a timer after the last item lands.
 const clearTimers = keyedTimeouts()
 
 const hasSessionTodos = (map: Record<string, TodoItem[]>, sid: string): boolean => Object.hasOwn(map, sid)
@@ -125,10 +124,6 @@ export function setSessionTodos(sid: string, todos: TodoItem[], revision?: null 
 
   clearTimers.cancel(sid)
   $todosBySession.set({ ...$todosBySession.get(), [sid]: todos })
-
-  if (!todoListActive(todos)) {
-    clearTimers.schedule(sid, FINISHED_LINGER_MS, () => dropSessionTodos(sid, false))
-  }
 }
 
 function dropSessionTodos(sid: string, forgetRevision: boolean) {

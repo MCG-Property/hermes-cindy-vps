@@ -1,6 +1,6 @@
 """Environment-variable overrides for the gateway config (``_apply_env_overrides``).
 
-Runs after ``GatewayConfig.from_dict`` so env always wins over config.yaml / gateway.json.
+Runs after ``GatewayConfig.from_dict`` so env always wins over config.yaml.
 Most platforms follow one shape — "credentials present in env ⇒ enable the platform and
 copy the values into ``extra``" — declared as ``_Cred`` rows in ``_ENV_STEPS`` (source
 order = application order). Platforms with unique gating are small functions in the same table.

@@ -260,7 +260,7 @@ export function ModelPicker({ bot = null, value, onChange, placeholderModel }: M
           <SelectTrigger className="h-8 rounded-md">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent searchable>
             <SelectItem value={NONE}>{b.editor.inheritLaunch}</SelectItem>
             {providers.map(p => (
               <SelectItem key={p.slug} value={p.slug}>
@@ -285,7 +285,7 @@ export function ModelPicker({ bot = null, value, onChange, placeholderModel }: M
             <SelectTrigger className="h-8 rounded-md">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent searchable>
               {models.map(m => (
                 <SelectItem key={m} value={m}>
                   {m}

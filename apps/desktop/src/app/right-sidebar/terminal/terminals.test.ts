@@ -35,8 +35,16 @@ describe('terminal store persistence', () => {
 
     expect($activeTerminalId.get()).toBe('term-two')
     expect($terminals.get()).toEqual([
-      { auto: false, cwd: '/repo/one', id: 'term-one', kind: 'user', reviveBuffer: 'last output', title: 'zsh' },
-      { auto: true, cwd: '/repo/two', id: 'term-two', kind: 'user', title: 'Terminal' }
+      {
+        auto: false,
+        cwd: '/repo/one',
+        id: 'term-one',
+        kind: 'user',
+        resumeOnCreate: true,
+        reviveBuffer: 'last output',
+        title: 'zsh'
+      },
+      { auto: true, cwd: '/repo/two', id: 'term-two', kind: 'user', resumeOnCreate: true, title: 'Terminal' }
     ])
   })
 
@@ -122,6 +130,41 @@ describe('terminal store persistence', () => {
 
     expect($terminals.get().find(term => term.id === agentId)?.restoreCwd).toBeUndefined()
     expect($terminals.get().find(term => term.id === userId)?.restoreCwd).toBeUndefined()
+  })
+
+  it('restores and persists a Cursor chat id so reopen can --resume the same pane', async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        activeTerminalId: 'term-one',
+        terminals: [{ auto: false, cwd: '/repo', cursorChatId: 'chat-old', id: 'term-one', title: 'zsh' }]
+      })
+    )
+
+    const { $terminals, updateTerminalCursorChatId } = await loadTerminalStore()
+
+    expect($terminals.get()[0]?.cursorChatId).toBe('chat-old')
+    expect($terminals.get()[0]?.restored).toBe(true)
+
+    updateTerminalCursorChatId('term-one', 'chat-new')
+    expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '{}').terminals[0].cursorChatId).toBe('chat-new')
+  })
+
+  it('opens the terminal pane when persisted user tabs exist', async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        activeTerminalId: 'term-one',
+        terminals: [{ auto: true, cwd: '/repo', id: 'term-one', title: 'Terminal' }]
+      })
+    )
+
+    const { revealPersistedTerminals } = await loadTerminalStore()
+    const { $terminalTakeover } = await import('../store')
+
+    $terminalTakeover.set(false)
+    revealPersistedTerminals()
+    expect($terminalTakeover.get()).toBe(true)
   })
 })
 
@@ -371,5 +414,40 @@ describe('shared WebGL atlas refresh fan-out', () => {
     } finally {
       Reflect.deleteProperty(window, 'hermesDesktop')
     }
+  })
+})
+
+describe('terminal pane restore', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.resetModules()
+  })
+
+  it('reopens the pane and marks restored tabs to reattach tmux', async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        activeTerminalId: 'term-one',
+        terminals: [{ auto: false, cwd: '/repo', cursorChatId: 'chat-1', id: 'term-one', title: 'zsh' }]
+      })
+    )
+
+    const { $terminals, restorePersistedTerminalPane, shouldRestoreTerminalPane } = await loadTerminalStore()
+    const { $terminalTakeover } = await import('../store')
+
+    expect($terminals.get()[0]).toMatchObject({
+      cursorChatId: 'chat-1',
+      resumeOnCreate: true
+    })
+    expect($terminalTakeover.get()).toBe(true)
+    expect(shouldRestoreTerminalPane()).toBe(true)
+    expect(restorePersistedTerminalPane()).toBe(true)
+  })
+
+  it('does not mark a freshly created tab for Cursor resume', async () => {
+    const { $terminals, createTerminal } = await loadTerminalStore()
+
+    createTerminal('/repo')
+    expect($terminals.get()[0]?.resumeOnCreate).toBeUndefined()
   })
 })

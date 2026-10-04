@@ -1,4 +1,4 @@
-import { Fragment, memo, type ReactNode } from 'react'
+import { Fragment, memo, type ReactNode, useState } from 'react'
 
 import { openAgentTerminal } from '@/app/right-sidebar/terminal/terminals'
 import { StatusPendingIcon } from '@/components/chat/status-pending-icon'
@@ -10,6 +10,7 @@ import { capitalize } from '@/lib/text'
 import type { TodoStatus } from '@/lib/todos'
 import { cn } from '@/lib/utils'
 import type { ComposerStatusItem } from '@/store/composer-status'
+import { $gateway } from '@/store/gateway'
 
 const toolLabel = (name: string) => name.split('_').filter(Boolean).map(capitalize).join(' ') || name
 
@@ -81,6 +82,7 @@ interface StatusItemRowProps {
   onOpen?: () => void
   /** Cancel a running background task. */
   onStop?: (id: string) => void
+  sessionId?: null | string
 }
 
 /**
@@ -93,12 +95,16 @@ export const StatusItemRow = memo(function StatusItemRow({
   item,
   onDismiss,
   onOpen,
-  onStop
+  onStop,
+  sessionId
 }: StatusItemRowProps) {
   const { t } = useI18n()
   const s = t.statusStack
   const failed = item.state === 'failed'
   const running = item.state === 'running'
+  const todoKey = item.type === 'todo' ? item.id.replace(/^todo:/, '') : ''
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(item.title)
 
   const action =
     item.type === 'background'
@@ -106,6 +112,23 @@ export const StatusItemRow = memo(function StatusItemRow({
         ? onStop && { label: s.stop, onClick: () => onStop(item.id) }
         : onDismiss && { label: s.dismiss, onClick: () => onDismiss(item.id) }
       : null
+
+  const saveTodo = () => {
+    const content = draft.trim()
+    setEditing(false)
+    if (!sessionId || !todoKey || !content || content === item.title) {
+      setDraft(item.title)
+      return
+    }
+    void $gateway.get()?.request('todo.update', { session_id: sessionId, id: todoKey, content })
+  }
+
+  const removeTodo = () => {
+    if (!sessionId || !todoKey) {
+      return
+    }
+    void $gateway.get()?.request('todo.delete', { session_id: sessionId, id: todoKey })
+  }
 
   const canOpen = item.type === 'subagent' && !!onOpen
 
@@ -121,11 +144,78 @@ export const StatusItemRow = memo(function StatusItemRow({
         leading={leadingGlyph(item, s, historical)}
         onActivate={onActivate}
         trailing={
-          canOpen ? (
+          item.type === 'todo' ? (
+            <span className="flex items-center gap-0.5">
+              <Tip label="Edit task">
+                <Button
+                  aria-label="Edit task"
+                  className="-my-1 size-4 rounded-md text-muted-foreground/60 hover:text-foreground/90"
+                  onClick={event => {
+                    event.stopPropagation()
+                    setDraft(item.title)
+                    setEditing(true)
+                  }}
+                  size="icon-xs"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Codicon name="edit" size="0.75rem" />
+                </Button>
+              </Tip>
+              <Tip label="Remove task">
+                <Button
+                  aria-label="Remove task"
+                  className="-my-1 size-4 rounded-md text-muted-foreground/60 hover:text-foreground/90"
+                  onClick={event => {
+                    event.stopPropagation()
+                    removeTodo()
+                  }}
+                  size="icon-xs"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Codicon name="close" size="0.75rem" />
+                </Button>
+              </Tip>
+            </span>
+          ) : action ? (
+            <Tip label={action.label}>
+              <Button
+                aria-label={action.label}
+                className="-my-1 size-4 rounded-md text-muted-foreground/60 hover:text-foreground/90"
+                onClick={event => {
+                  event.stopPropagation()
+                  action.onClick()
+                }}
+                size="icon-xs"
+                type="button"
+                variant="ghost"
+              >
+                <Codicon name="close" size="0.75rem" />
+              </Button>
+            </Tip>
+          ) : canOpen ? (
             <Codicon aria-hidden className="text-muted-foreground/55" name="link-external" size="0.85rem" />
           ) : undefined
         }
+        trailingVisible={item.type === 'todo' || Boolean(action)}
       >
+        {item.type === 'todo' && editing ? (
+          <input
+            className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 text-[0.73rem] leading-4 text-foreground outline-none focus:border-(--ui-stroke-tertiary)"
+            onBlur={saveTodo}
+            onChange={event => setDraft(event.target.value)}
+            onClick={event => event.stopPropagation()}
+            onKeyDown={event => {
+              if (event.key === 'Enter') saveTodo()
+              if (event.key === 'Escape') {
+                setDraft(item.title)
+                setEditing(false)
+              }
+            }}
+            value={draft}
+          />
+        ) : (
         <span
           className={cn(
             'min-w-0 flex-1 truncate text-[0.73rem] leading-4',
@@ -138,6 +228,7 @@ export const StatusItemRow = memo(function StatusItemRow({
         >
           {item.title}
         </span>
+        )}
         {item.type === 'subagent' && item.currentTool && (
           <span className="shrink-0 truncate text-[0.62rem] leading-4 text-muted-foreground/70">
             {toolLabel(item.currentTool)}

@@ -235,6 +235,21 @@ test('buildInteractiveSshArgs single-quotes a cwd with quotes safely', () => {
   assert.ok(args[args.length - 1].includes('exec "$SHELL" -l'))
 })
 
+test('buildInteractiveSshArgs wraps a persisted pane in a named tmux session', () => {
+  const conn = { user: 'me', host: 'box', port: 22, keyPath: '', controlPath: '/tmp/x.sock' }
+  const args = buildInteractiveSshArgs(conn, '/home/me', 15000, undefined, {
+    persistKey: 'term-one',
+    resumeOnCreate: true,
+    cursorChatId: 'chat-1'
+  })
+  const remoteCmd = args[args.length - 1]
+
+  assert.match(remoteCmd, /HERMES_TERM='h-term-one'/)
+  assert.match(remoteCmd, /tmux attach-session/)
+  assert.match(remoteCmd, /HERMES_RESUME=1/)
+  assert.match(remoteCmd, /agent --resume/)
+})
+
 test('classifySshError detects a changed host key (fail-closed)', () => {
   assert.equal(
     classifySshError('@@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @@@@'),
@@ -1172,6 +1187,19 @@ test('buildInteractiveSshArgs inserts -- before the destination', () => {
   const ddIdx = args.indexOf('--')
   assert.ok(ddIdx >= 0, 'must contain --')
   assert.equal(args[ddIdx + 1], 'me@box')
+})
+
+test('buildInteractiveSshArgs wraps a persisted pane in a named Sydney tmux session', () => {
+  const conn = { user: 'me', host: 'box', port: 22, keyPath: '', controlPath: '/tmp/x.sock' }
+  const args = buildInteractiveSshArgs(conn, '/home/me', 15000, undefined, {
+    persistKey: 'term-one',
+    resumeOnCreate: true
+  })
+  const remoteCmd = args[args.length - 1]
+  assert.match(remoteCmd, /HERMES_TERM='h-term-one'/)
+  assert.match(remoteCmd, /Australia\/Sydney/)
+  assert.match(remoteCmd, /tmux attach-session/)
+  assert.match(remoteCmd, /HERMES_RESUME=1/)
 })
 
 test('hostArgs rejects a keyPath with control characters', () => {

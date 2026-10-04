@@ -250,6 +250,48 @@ class TestRecordFileMutationResult:
         still_failed = agent._file_mutations_still_failed(agent._turn_failed_file_mutations)
         assert list(still_failed) == [str(untouched)]
 
+    def test_permission_ask_is_not_recorded_as_failed_mutation(self):
+        """Ask-first gates must not become a post-hoc 'NOT modified' footer."""
+        agent = _bare_agent()
+        agent._record_file_mutation_result(
+            "write_file",
+            {"path": "/home/hermes/.hermes/config.yaml", "content": "x"},
+            json.dumps({
+                "success": False,
+                "error": (
+                    "BLOCKED: write to Hermes settings file "
+                    "(/home/hermes/.hermes/config.yaml) requires approval but no "
+                    "interactive user or gateway is present to approve it. "
+                    "The user has NOT consented to this write."
+                ),
+            }),
+            is_error=True,
+        )
+        assert agent._turn_failed_file_mutations == {}
+        assert AIAgent._format_file_mutation_failure_footer(
+            agent._turn_failed_file_mutations
+        ) == ""
+
+    def test_legacy_hard_deny_config_error_is_not_a_verifier_footer(self):
+        agent = _bare_agent()
+        agent._record_file_mutation_result(
+            "patch",
+            {"mode": "replace", "path": "/home/hermes/.hermes/config.yaml",
+             "old_string": "a", "new_string": "b"},
+            json.dumps({
+                "error": (
+                    "Refusing to write to Hermes config file: "
+                    "/home/hermes/.hermes/config.yaml"
+                ),
+            }),
+            is_error=True,
+        )
+        assert agent._turn_failed_file_mutations == {}
+
+
+
+
+
 # ---------------------------------------------------------------------------
 # _format_file_mutation_failure_footer
 # ---------------------------------------------------------------------------

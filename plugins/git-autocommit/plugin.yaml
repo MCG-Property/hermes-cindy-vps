@@ -1,0 +1,14 @@
+name: git-autocommit
+version: "1.0.0"
+description: >-
+  Auto-commits and pushes uncommitted changes in the live hermes-agent-runtime
+  checkout whenever a Hermes session finalizes. Pushes ONLY to the
+  cam-douglas fork's main branch -- never to origin (upstream
+  NousResearch/hermes-agent). No more per-feature side branches; everything
+  lands on main. Runs a plain `git status --porcelain` check first and does
+  nothing if the tree is clean, so it never creates empty commits.
+  Non-blocking: any git failure is logged and swallowed rather than raised,
+  so it can never break session shutdown.
+author: "Cam Douglas"
+hooks:
+  - on_session_finalize

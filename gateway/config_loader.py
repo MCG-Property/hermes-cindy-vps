@@ -1,13 +1,10 @@
-"""config.yaml / gateway.json → ``GatewayConfig.from_dict`` schema (the ``load_gateway_config`` phases).
+"""config.yaml → ``GatewayConfig.from_dict`` schema (the ``load_gateway_config`` phases).
 
 Precedence for top-level keys: key-presence at the TOP LEVEL of config.yaml wins; the nested
-``gateway.<key>`` form (what ``hermes config set gateway.<key>`` produces) is consulted only when the
-top-level key is absent — not merely falsy/mistyped — so a present-but-empty top-level value is never
-silently replaced by the nested one. Both overwrite whatever legacy gateway.json set.
+``gateway.<key>`` form is consulted only when the top-level key is absent.
 """
 
 import contextlib
-import json
 import logging
 import os
 from pathlib import Path
@@ -19,19 +16,14 @@ from gateway.config import UNAUTHORIZED_DM_BEHAVIORS, Platform, PlatformConfig, 
 logger = logging.getLogger("gateway.config")
 
 
-def load_legacy_gateway_json(home: Path) -> Any:
-    """Legacy ``gateway.json`` base layer (config.yaml keys always win). Malformed → ``{}`` + warning."""
-    path = home / "gateway.json"
-    if not path.exists():
-        return {}
-    try:
-        with open(path, "r", encoding="utf-8-sig") as f:
-            data = json.load(f) or {}
-        logger.info("Loaded legacy %s — consider moving settings to config.yaml", path)
-        return data
-    except Exception as e:
-        logger.warning("Failed to load %s: %s", path, e)
-        return {}
+def load_legacy_gateway_json(home: Path) -> dict:
+    """Return an empty base for compatibility with older callers.
+
+    ``config.yaml`` is the sole supported file-backed gateway configuration.
+    The function name remains temporarily so third-party imports fail closed
+    without reintroducing a second configuration source.
+    """
+    return {}
 
 
 # --- top-level key bridging ----------------------------------------------------
@@ -43,7 +35,7 @@ def load_legacy_gateway_json(home: Path) -> Any:
 #
 # Fallback modes (how the nested ``gateway.<key>`` form is consulted):
 #   "presence": top-level key present → its value; else nested key present.
-#   "gwdata":   like "presence", but nested only when NOTHING (config.yaml or gateway.json) set it yet.
+#   "gwdata":   like "presence", but nested only when NOTHING in config.yaml set it yet.
 #   "none":     top-level VALUE is None → nested value.
 #   "dict":     top-level value is not a mapping → nested value; accepted only if a mapping.
 #   "nested":   nested form only (no top-level spelling is bridged).
@@ -139,7 +131,7 @@ def bridge_toplevel_keys(yaml_cfg: dict, gateway_section: Any, gw_data: dict) ->
 def merge_platform_sections(yaml_cfg: dict, gateway_cfg: Any, gw_data: dict, *, also: frozenset = frozenset()) -> dict:
     """Merge every place a platform block may live into ``gw_data["platforms"]`` and return it.
 
-    Order (later wins on shared keys, ``extra`` deep-merged so gateway.json defaults survive):
+    Order (later wins on shared keys, ``extra`` deep-merged so config.yaml defaults survive):
     ``gateway.platforms.*`` → top-level ``platforms.*`` → ``gateway.<platform>`` subsections (nested
     first so top-level config keeps precedence, matching the gateway.streaming fallback). An
     ``enabled`` key in any block sets the ``_enabled_explicit`` marker consumed by the env pass.

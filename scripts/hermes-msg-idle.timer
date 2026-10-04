@@ -1,0 +1,9 @@
+[Unit]
+Description=Deterministic Hermes Chrome park + gateway keep-alive
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=15s
+Persistent=true
+[Install]
+WantedBy=timers.target

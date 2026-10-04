@@ -186,6 +186,8 @@ class TestEdgeCases:
                 _session_browse_picker(sessions)
 
         output = capsys.readouterr().out
-        assert "just now" in output
-        assert "2h ago" in output
-        assert "3d ago" in output
+        from hermes_cli.timefmt import format_sydney
+
+        assert format_sydney(now) in output
+        assert format_sydney(now - 7200) in output
+        assert format_sydney(now - 259200) in output

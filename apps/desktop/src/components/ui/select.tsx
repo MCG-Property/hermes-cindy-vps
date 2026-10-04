@@ -11,7 +11,11 @@ import {
   menuMotionClass,
   menuSurfaceClass
 } from '@/components/ui/menu'
+import { countSelectItems, filterSelectChildren } from '@/components/ui/select-search'
+import { usePickerFilterCapture } from '@/lib/picker-typeahead'
 import { cn } from '@/lib/utils'
+
+const SELECT_NAV_KEYS = new Set(['ArrowDown', 'ArrowUp', 'Enter', 'Escape', 'Tab'])
 
 function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
   return <SelectPrimitive.Root data-slot="select" {...props} />
@@ -49,14 +53,33 @@ function SelectContent({
   className,
   children,
   collisionPadding = 8,
+  onCloseAutoFocus,
   position = 'popper',
+  searchPlaceholder = 'Search…',
+  searchable = false,
   sideOffset = 4,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Content>) {
+}: React.ComponentProps<typeof SelectPrimitive.Content> & {
+  /** Autofocused filter. Open the select and type to narrow items. */
+  searchable?: boolean
+  searchPlaceholder?: string
+}) {
   // Portal into the enclosing dialog (if any) so the dropdown is a DOM
   // descendant of the dialog — keeps focus inside and stops the dialog closing
   // when the dropdown is dismissed. Falls back to document.body outside a dialog.
   const container = usePopoverPortalContainer()
+  const searchRef = React.useRef<HTMLInputElement>(null)
+  const [query, setQuery] = React.useState('')
+  const filtered = searchable ? filterSelectChildren(children, query) : children
+  const empty = searchable && Boolean(query.trim()) && countSelectItems(filtered) === 0
+
+  React.useEffect(() => {
+    if (searchable) {
+      searchRef.current?.focus()
+    }
+  }, [searchable])
+
+  usePickerFilterCapture(searchable, searchRef, setQuery)
 
   return (
     <SelectPrimitive.Portal container={container}>
@@ -66,22 +89,54 @@ function SelectContent({
           menuMotionClass,
           'relative z-(--z-modal-popover) max-h-72 min-w-36 overflow-hidden p-0',
           position === 'popper' &&
-            'max-h-[min(18rem,var(--radix-select-content-available-height))] origin-(--radix-select-content-transform-origin)',
+            'max-h-[min(18rem,var(--radix-select-content-available-height))] origin-(--radix-select-content-transform-origin) data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1',
+          searchable && 'flex flex-col',
           className
         )}
         collisionPadding={position === 'popper' ? collisionPadding : undefined}
         data-slot="select-content"
+        onCloseAutoFocus={event => {
+          setQuery('')
+          onCloseAutoFocus?.(event)
+        }}
         position={position}
         sideOffset={position === 'popper' ? sideOffset : undefined}
         {...props}
       >
+        {searchable && (
+          <div className="border-b border-border px-2 py-1.5" data-slot="select-search">
+            <input
+              aria-label={searchPlaceholder}
+              autoFocus
+              className="h-6 w-full bg-transparent text-xs leading-none text-foreground placeholder:text-muted-foreground focus:outline-none"
+              onChange={event => setQuery(event.target.value)}
+              onKeyDown={event => {
+                if (!SELECT_NAV_KEYS.has(event.key)) {
+                  event.stopPropagation()
+                }
+              }}
+              placeholder={searchPlaceholder}
+              ref={searchRef}
+              spellCheck={false}
+              type="text"
+              value={query}
+            />
+          </div>
+        )}
         <SelectPrimitive.Viewport
           className={cn(
             'dt-portal-scrollbar p-1',
-            position === 'popper' && 'w-full min-w-(--radix-select-trigger-width)'
+            searchable
+              ? 'max-h-60 w-full min-w-(--radix-select-trigger-width) overflow-y-auto'
+              : position === 'popper' &&
+                'h-(--radix-select-trigger-height) w-full min-w-(--radix-select-trigger-width)'
           )}
         >
-          {children}
+          {empty ? (
+            <div className="px-2 py-1.5 text-xs text-muted-foreground">No results</div>
+          ) : (
+            filtered
+          )}
         </SelectPrimitive.Viewport>
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>

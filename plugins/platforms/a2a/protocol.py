@@ -182,6 +182,19 @@ def extract_context_id(params: dict) -> str:
     return (str(msg.get("contextId") or "") if isinstance(msg, dict) else "") or str(params.get("contextId") or "")
 
 
+def extract_reply_session_id(params: dict) -> str:
+    """Hermes extension: durable session id for an exact-session callback.
+
+    The hint is stored in standard A2A Message metadata. Non-Hermes peers can
+    ignore it, and the receiver must still verify that the session exists.
+    """
+    msg = params.get("message") or {}
+    metadata = msg.get("metadata") if isinstance(msg, dict) else None
+    if not isinstance(metadata, dict):
+        metadata = params.get("metadata")
+    return str((metadata or {}).get("hermesReplySessionId") or "").strip()
+
+
 def build_task(task_id: str, context_id: str, state: str, agent_text: str = "", *, created_at: str = "") -> dict:
     """A2A v1.0 Task. ``created_at`` is accepted but NOT serialized: the v1.0 Task proto has no
     createdAt and strict ProtoJSON parsers (a2a-sdk) reject unknown fields."""

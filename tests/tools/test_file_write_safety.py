@@ -877,12 +877,12 @@ class TestProtectedInstructionFiles:
                 assert approval_data.get("allow_permanent") is False
                 assert approval_data.get("allow_session") is False
                 A.resolve_gateway_approval(session_key, "once")
-
             A.register_gateway_notify(session_key, notify)
             try:
-                res = self._write(tmp_path / "AGENTS.md", "gateway approved")
+                target = tmp_path / "AGENTS.md"
+                res = self._write(target, "from gateway")
                 assert not res.get("error"), res
-                assert (tmp_path / "AGENTS.md").read_text(encoding="utf-8") == "gateway approved"
+                assert target.read_text(encoding="utf-8") == "from gateway"
             finally:
                 A.unregister_gateway_notify(session_key)
         finally:
@@ -945,7 +945,9 @@ class TestProfileHomeExemptsHermesRoot:
         state = {"calls": [], "answer": "deny"}
 
         def cb(command, description, **kwargs):
-            state["calls"].append({"command": command, "description": description})
+            state["calls"].append(
+                {"command": command, "description": description, **kwargs}
+            )
             return state["answer"]
 
         set_approval_callback(cb)
@@ -1073,8 +1075,116 @@ class TestMultiplexProfileWriteGuardsAreProfileScoped:
 
         tok = set_hermes_home_override(str(b))
         try:
-            err = ft._check_sensitive_path(str(b / "config.yaml"), "default")
+            # _check_sensitive_path no longer hard-blocks config.yaml (that gate moved to
+            # _check_hermes_config_write's always-ask flow); the profile-scoping guarantee
+            # this test exists for now lives in _get_hermes_config_resolved's per-call
+            # resolution, exercised here through the ask-gate instead.
+            err = ft._check_hermes_config_write([str(b / "config.yaml")], "default")
         finally:
             reset_hermes_home_override(tok)
         assert err is not None
-        assert "Refusing to write to Hermes config file" in err
+        assert "Hermes settings" in err
+
+
+class TestHermesConfigAlwaysAsk:
+    """Live ~/.hermes/config.yaml writes ask BEFORE the edit.
+
+    Settings must be able to land in that file, but approvals.mode lives
+    there so yolo must not bypass the prompt. Fail closed with no human.
+    """
+
+    @pytest.fixture
+    def approvals(self, monkeypatch):
+        from tools.terminal_tool import set_approval_callback
+        state = {"calls": [], "answer": "deny"}
+
+        def cb(command, description, **kwargs):
+            state["calls"].append(
+                {"command": command, "description": description, **kwargs}
+            )
+            return state["answer"]
+
+        set_approval_callback(cb)
+        yield state
+        set_approval_callback(None)
+
+    def _point_at(self, monkeypatch, path):
+        import tools.file_tools_write_guards as ft
+        monkeypatch.setattr(ft, "_hermes_config_resolved", str(path))
+        monkeypatch.setattr(ft, "_hermes_config_resolved_loaded", True)
+
+    def test_deny_blocks_write_after_asking(self, tmp_path, approvals, monkeypatch):
+        target = tmp_path / "config.yaml"
+        target.write_text("model:\n  default: keep-me\n", encoding="utf-8")
+        self._point_at(monkeypatch, target)
+        approvals["answer"] = "deny"
+        from tools.file_tools import write_file_tool
+        import json
+        res = json.loads(write_file_tool(str(target), "approvals:\n  mode: off\n"))
+        assert res.get("error") and "BLOCKED" in res["error"]
+        assert "Hermes settings" in res["error"]
+        assert target.read_text(encoding="utf-8") == "model:\n  default: keep-me\n"
+        assert len(approvals["calls"]) == 1
+        assert "BEFORE" in approvals["calls"][0]["description"]
+
+    def test_approve_once_writes_live_config(self, tmp_path, approvals, monkeypatch):
+        target = tmp_path / "config.yaml"
+        target.write_text("model:\n  default: old\n", encoding="utf-8")
+        self._point_at(monkeypatch, target)
+        approvals["answer"] = "once"
+        from tools.file_tools import read_file_tool, write_file_tool
+        import json
+        read_file_tool(str(target))  # establish the full-read baseline the stale-overwrite guard requires
+        res = json.loads(write_file_tool(str(target), "model:\n  default: new\n"))
+        assert not res.get("error"), res
+        assert target.read_text(encoding="utf-8") == "model:\n  default: new\n"
+        assert len(approvals["calls"]) == 1
+
+    def test_prompts_even_under_yolo(self, tmp_path, approvals, monkeypatch):
+        import tools.approval as A
+        monkeypatch.setattr(A, "_YOLO_MODE_FROZEN", True)
+        target = tmp_path / "config.yaml"
+        self._point_at(monkeypatch, target)
+        approvals["answer"] = "deny"
+        from tools.file_tools import write_file_tool
+        import json
+        res = json.loads(write_file_tool(str(target), "approvals:\n  mode: off\n"))
+        assert res.get("error") and "BLOCKED" in res["error"]
+        assert not target.exists()
+        assert len(approvals["calls"]) == 1, "yolo bypassed the config.yaml gate"
+
+    def test_no_human_fails_closed_without_writing(self, tmp_path, monkeypatch):
+        target = tmp_path / "config.yaml"
+        self._point_at(monkeypatch, target)
+        from tools.file_tools import write_file_tool
+        import json
+        res = json.loads(write_file_tool(str(target), "approvals:\n  mode: off\n"))
+        assert res.get("error") and "BLOCKED" in res["error"]
+        assert "requires approval" in res["error"]
+        assert not target.exists()
+
+    def test_patch_asks_before_editing_live_config(self, tmp_path, approvals, monkeypatch):
+        target = tmp_path / "config.yaml"
+        target.write_text("model:\n  default: keep-me\n", encoding="utf-8")
+        self._point_at(monkeypatch, target)
+        approvals["answer"] = "deny"
+        from tools.file_tools import patch_tool
+        import json
+        res = json.loads(patch_tool(
+            mode="replace", path=str(target),
+            old_string="keep-me", new_string="changed",
+        ))
+        assert res.get("error") and "BLOCKED" in res["error"]
+        assert "Hermes settings" in res["error"]
+        assert target.read_text(encoding="utf-8") == "model:\n  default: keep-me\n"
+        assert len(approvals["calls"]) == 1
+
+    def test_sensitive_path_check_does_not_hard_deny_config(self, tmp_path, monkeypatch):
+        from tools.file_tools_write_guards import _check_sensitive_path
+        target = tmp_path / "config.yaml"
+        self._point_at(monkeypatch, target)
+        assert _check_sensitive_path(str(target)) is None
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

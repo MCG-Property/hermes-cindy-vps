@@ -1394,7 +1394,7 @@ function CronEditorDialog({
                   <SelectTrigger className="h-9 rounded-md" id="cron-model">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent searchable>
                     <SelectItem value={MODEL_DEFAULT_VALUE}>{c.modelDefault}</SelectItem>
                     {!modelChoiceKnown && (
                       <SelectItem className="font-mono" value={modelChoice}>

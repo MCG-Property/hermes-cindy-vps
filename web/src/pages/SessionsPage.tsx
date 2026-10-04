@@ -46,7 +46,7 @@ import type {
   SessionStoreStats,
   StatusResponse,
 } from "@/lib/api";
-import { timeAgo } from "@/lib/utils";
+import { sessionListTime, timeAgo } from "@/lib/utils";
 import { Markdown } from "@/components/Markdown";
 import { PlatformsCard } from "@/components/PlatformsCard";
 import { Toast } from "@nous-research/ui/ui/components/toast";
@@ -723,7 +723,7 @@ function SessionRow({
                   </>
                 )}
                 <span className="text-border">&#183;</span>
-                <span className="shrink-0">{timeAgo(session.last_active)}</span>
+                <span className="shrink-0">{sessionListTime(session.last_active)}</span>
               </div>
               {snippet && <SnippetHighlight snippet={snippet} />}
             </div>
@@ -2183,7 +2183,7 @@ export default function SessionsPage() {
                           </>
                         )}
                         {s.message_count} {t.common.msgs} ·{" "}
-                        {timeAgo(s.last_active)}
+                        {sessionListTime(s.last_active)}
                       </span>
 
                       {s.preview && s.title && (

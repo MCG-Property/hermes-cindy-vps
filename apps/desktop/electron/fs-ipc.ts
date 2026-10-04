@@ -7,6 +7,7 @@ import path from 'node:path'
 
 import { ipcMain, shell } from 'electron'
 
+import { desktopChromeRoot, rollbackChrome, snapshotChrome } from './desktop-chrome'
 import { installDesktopPluginFromGit, probePluginRepo } from './desktop-plugin-install'
 import { removeDesktopPlugin } from './desktop-plugin-remove'
 import {
@@ -127,6 +128,12 @@ export function registerFsIpc({
   }
 
   ipcMain.handle('hermes:fs:desktopPluginsRoot', async () => desktopPluginsRoot())
+
+  ipcMain.handle('hermes:fs:desktopChromeRoot', async () => desktopChromeRoot(hermesHome))
+
+  ipcMain.handle('hermes:chrome:snapshot', async () => snapshotChrome(await desktopChromeRoot(hermesHome)))
+
+  ipcMain.handle('hermes:chrome:rollback', async () => rollbackChrome(await desktopChromeRoot(hermesHome)))
 
   // Re-run the unified-half reconcile on demand (after an agent-plugin install /
   // update / uninstall through the gateway) so the app-level copy tracks the

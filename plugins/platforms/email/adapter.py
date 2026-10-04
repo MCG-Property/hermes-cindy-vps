@@ -699,7 +699,11 @@ class EmailAdapter(BasePlatformAdapter):
                     if not accepted:
                         self._mark_uid_consumed(imap, uid)
                         continue
-                    status, msg_data = imap.uid("fetch", uid, "(RFC822)")
+                    # BODY.PEEK[] returns the same full RFC822 payload as RFC822/BODY[] but does not
+                    # implicitly set \Seen on the server, which Gmail syncs straight to its own read
+                    # status: an unpeeked fetch here silently marked every new inbox message read
+                    # before the user ever opened it.
+                    status, msg_data = imap.uid("fetch", uid, "(BODY.PEEK[])")
                     if status != "OK":
                         continue  # transient per-UID refusal: leave unseen so the next poll retries
                     # Mark seen once a response arrived (even malformed) so garbage is skipped once, not retried forever —
@@ -962,11 +966,33 @@ class EmailAdapter(BasePlatformAdapter):
 
 
 # Plugin glue: register() exposes the platform via the registry; EMAIL_* env → PlatformConfig seeding stays in core.
+def _loopback_smtp_host(host: str) -> bool:
+    return (host or "").strip().lower() in {"127.0.0.1", "localhost", "::1"}
+
+
+def _standalone_send_via_gmail_api(chat_id, message):
+    """DigitalOcean blocks outbound SMTP; send over Gmail API HTTPS instead."""
+    import importlib.util
+    helper = Path("/home/hermes/.hermes/scripts/gmail_api_send.py")
+    spec = importlib.util.spec_from_file_location("gmail_api_send", helper)
+    if spec is None or spec.loader is None:
+        return {"error": "Gmail API send helper is missing"}
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mid = mod.send_mail(to_addr=str(chat_id), subject="Hermes Agent", body=message or "")
+    return {"success": True, "platform": "email", "chat_id": chat_id, "id": mid}
+
+
 async def _standalone_send(pconfig, chat_id, message, *, thread_id=None, media_files=None, force_document=False):
     """Out-of-process Email delivery via SMTP (one-shot); standalone_sender_fn contract."""
     extra = getattr(pconfig, "extra", {}) or {}
     address, password = extra.get("address") or _get_secret("EMAIL_ADDRESS", ""), _get_secret("EMAIL_PASSWORD", "")
     smtp_host, smtp_port = extra.get("smtp_host") or _get_secret("EMAIL_SMTP_HOST", ""), _esecret_int("EMAIL_SMTP_PORT", 587)
+    if _loopback_smtp_host(smtp_host) or not password:
+        try:
+            return _standalone_send_via_gmail_api(chat_id, message)
+        except Exception as e:
+            return {"error": f"Email send failed: {e}"}
     smtp_security = _normalize_security(_get_secret("EMAIL_SMTP_SECURITY", "") or extra.get("smtp_security"), default="tls" if smtp_port == 465 else "starttls")
     smtp_tls_verify = _esecret_bool("EMAIL_SMTP_TLS_VERIFY", is_truthy_value(extra.get("smtp_tls_verify"), default=True))
     if not all([address, password, smtp_host]):
@@ -990,8 +1016,11 @@ async def _standalone_send(pconfig, chat_id, message, *, thread_id=None, media_f
 
 def _is_connected(config) -> bool:
     """Connected when an address is configured (PlatformConfig.extra or EMAIL_ADDRESS)."""
-    if (getattr(config, "extra", {}) or {}).get("address"):
+    extra = getattr(config, "extra", {}) or {}
+    if extra.get("address"):
         return True
+    if _loopback_smtp_host(str(extra.get("smtp_host") or "")):
+        return Path("/home/hermes/.hermes/google_token.json").exists()
     import hermes_cli.gateway as gateway_mod
     return bool((gateway_mod.get_env_value("EMAIL_ADDRESS") or "").strip())
 

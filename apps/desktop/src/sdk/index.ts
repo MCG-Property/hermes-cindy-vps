@@ -1894,6 +1894,7 @@ export type {
  *  `ctx.register` stays the door for permanent contributions. Namespace the
  *  id with your plugin slug (`kanban:board-switcher`). */
 export { Contribute, type ContributeProps } from '@/contrib/react/contribute'
+export { ChromeSlot, CHROME_SLOTS_AREA } from '@/contrib/chrome-slot'
 
 // -- contracts ----------------------------------------------------------------
 

@@ -4722,27 +4722,48 @@ def _profile_sessions_dir(launch: Optional[Tuple[Path, Path]]) -> Path:
 
 
 def _housekeeping_state_db_maintenance(launch: Optional[Tuple[Path, Path]] = None) -> None:
-    """Stale-session auto-archive plus auto-prune/VACUUM for ONE profile's state.db; both are gated
-    by sessions.min_interval_hours (VACUUM additionally by its own throttles). Opens its own
-    SessionDB — SQLite connections are thread-bound.
+    """Stale-session auto-archive (with per-identity restore-notices) plus auto-prune/VACUUM for ONE
+    profile's state.db; both are gated by sessions.min_interval_hours (VACUUM additionally by its own
+    throttles, archive-notify by its own last_auto_archive_notify meta key). Opens its own SessionDB —
+    SQLite connections are thread-bound.
 
     Profile-scoped by its caller: ``acquire()``, ``get_hermes_home()`` and ``load_config()`` all
     resolve through the active scope, so an unscoped run swept only the LAUNCH profile's store with
     the LAUNCH profile's retention settings and a multiplexed secondary was never archived, pruned
     or vacuumed by anyone — the dashboard/serve trigger defers to the gateway for every profile a
     gateway owns (``web_server_sessions``). *launch* carries the launch home's configured transcript
-    dir (:func:`_launch_sessions_dir`) so its override still governs its own profile."""
+    dir (:func:`_launch_sessions_dir`) so its override still governs its own profile.
+
+    Auto-archive uses the detailed sweep so every session it archives also gets a pending
+    restore-notice recorded for its (source, user_id) identity, replacing the old plain
+    maybe_auto_archive (which only flipped the archived bit with no notice) so there is exactly one
+    archive sweep / one gate here — never both, or a second sweep would just find nothing the first
+    already archived, with whichever gate fired first silently deciding behavior."""
     from hermes_cli.config import load_config as _load_full_config
     from hermes_state_registry import acquire, release_or_close
+    from gateway.archive_notify import record_archive_notices
     _sess_cfg = (_load_full_config().get("sessions") or {})
     if not (_sess_cfg.get("auto_archive", False) or _sess_cfg.get("auto_prune", False)):
         return
     _adb = acquire()
     try:
         if _sess_cfg.get("auto_archive", False):
-            _adb.maybe_auto_archive(
-                idle_days=float(_sess_cfg.get("auto_archive_days", 3)),
-                min_interval_hours=int(_sess_cfg.get("min_interval_hours", 24)))
+            try:
+                _last = float(_adb.get_meta("last_auto_archive_notify") or 0.0)
+            except (TypeError, ValueError):
+                _last = 0.0
+            _min_interval_h = int(_sess_cfg.get("min_interval_hours", 24))
+            if not _last or time.time() - _last >= _min_interval_h * 3600:
+                _archived = _adb.archive_stale_sessions_detailed(
+                    idle_days=float(_sess_cfg.get("auto_archive_days", 3)), exclude_pinned=True,
+                )
+                _adb.set_meta("last_auto_archive_notify", str(time.time()))
+                if _archived:
+                    _notified = record_archive_notices(_adb, _archived)
+                    logger.info(
+                        "Session archive-notify: archived %d session(s) idle >= %s days across %d identit(y/ies)",
+                        len(_archived), _sess_cfg.get("auto_archive_days", 3), _notified,
+                    )
         if _sess_cfg.get("auto_prune", False):
             _adb.maybe_auto_prune_and_vacuum(
                 retention_days=int(_sess_cfg.get("retention_days", 90)),
@@ -5786,6 +5807,7 @@ async def _start_gateway_shutdown_tail(
 
     _best_effort(_stop_keepalive)
 
+
     # Never join(): an in-flight cron delivery is a coroutine on THIS loop; a sync join would drop it.
     # Stop cron scheduler + housekeeping cleanly. These MUST be awaited cooperatively, not join()ed. A cron
     # delivery in flight when the gateway restarts is a coroutine scheduled onto THIS event loop
@@ -5966,6 +5988,9 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
         _shutdown_gateway_health_export(runner)
         raise
     if not success:
+        if runner.should_exit_with_failure:
+            with suppress(Exception):
+                await runner._send_gateway_unhealthy_notification(runner.exit_reason)
         _shutdown_gateway_health_export(runner)
         return False
 

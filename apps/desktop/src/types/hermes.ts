@@ -871,6 +871,11 @@ export interface UsageStats {
   context_source?: string
   context_used?: number
   cost_usd?: number
+  /** Rolling paid spend used by the hourly cost guard. */
+  hourly_cost_usd?: number
+  /** True while the guard is routing requests through free fallbacks. */
+  cost_guard_active?: boolean
+  cost_guard_limit_usd?: number
   input: number
   output: number
   total: number

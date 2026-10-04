@@ -300,14 +300,14 @@ def _cmd_list(db, args):
         created = s.get("created_source") or ""
         return f"{created}→{s['source']}" if created and created != s["source"] else s["source"]
     layouts = {  # (has_ws, has_titles): header, rule width, row formatter
-        (True, True): (f"{'Title':<28} {'Workspace':<18} {'Last Active':<13} {'ID'}", 110,
-                       lambda s: f"{_title(s, 26):<28} {_ws(s):<18} {_ago(s):<13} {s['id']}"),
-        (True, False): (f"{'Preview':<38} {'Workspace':<18} {'Last Active':<13} {'Src':<16} {'ID'}", 110,
-                        lambda s: f"{_preview(s, 36):<38} {_ws(s):<18} {_ago(s):<13} {_src(s):<16} {s['id']}"),
-        (False, True): (f"{'Title':<32} {'Preview':<40} {'Last Active':<13} {'ID'}", 110,
-                        lambda s: f"{_title(s, 30):<32} {_preview(s, 38):<40} {_ago(s):<13} {s['id']}"),
-        (False, False): (f"{'Preview':<50} {'Last Active':<13} {'Src':<16} {'ID'}", 105,
-                         lambda s: f"{_preview(s, 48):<50} {_ago(s):<13} {_src(s):<16} {s['id']}"),
+        (True, True): (f"{'Title':<28} {'Workspace':<18} {'Last Active':<22} {'ID'}", 120,
+                       lambda s: f"{_title(s, 26):<28} {_ws(s):<18} {_ago(s):<22} {s['id']}"),
+        (True, False): (f"{'Preview':<38} {'Workspace':<18} {'Last Active':<22} {'Src':<16} {'ID'}", 120,
+                        lambda s: f"{_preview(s, 36):<38} {_ws(s):<18} {_ago(s):<22} {_src(s):<16} {s['id']}"),
+        (False, True): (f"{'Title':<32} {'Preview':<40} {'Last Active':<22} {'ID'}", 120,
+                        lambda s: f"{_title(s, 30):<32} {_preview(s, 38):<40} {_ago(s):<22} {s['id']}"),
+        (False, False): (f"{'Preview':<50} {'Last Active':<22} {'Src':<16} {'ID'}", 115,
+                         lambda s: f"{_preview(s, 48):<50} {_ago(s):<22} {_src(s):<16} {s['id']}"),
     }
     header, rule, fmt = layouts[(has_ws, has_titles)]
     print(header + "\n" + "─" * rule)
@@ -812,10 +812,10 @@ def _cmd_pinned(db, args):
     if not pinned_rows:
         print("No pinned sessions. Pin one with: hermes sessions pin <session_id>")
         return
-    print(f"{'Title':<32} {'Last Active':<13} {'Src':<9} {'ID'}\n" + "─" * 100)
+    print(f"{'Title':<32} {'Last Active':<22} {'Src':<9} {'ID'}\n" + "─" * 110)
     for s in pinned_rows:
         title = (s.get("title") or s.get("preview", "") or "—")[:30]
-        print(f"{title:<32} {_relative_time(s.get('last_active'), session_id=s['id']):<13} {(s.get('source') or '-'):<9} {s['id']}")
+        print(f"{title:<32} {_relative_time(s.get('last_active'), session_id=s['id']):<22} {(s.get('source') or '-'):<9} {s['id']}")
 
 
 def _cmd_retitle_skills(db, args):
@@ -1164,6 +1164,35 @@ def _cmd_repair_prompts(db, args):
     return 0
 
 
+def _cmd_force_archive_all(db, args):
+    """ONE-TIME: force-archive every currently open (non-pinned, unless --include-pinned) session
+    system-wide right now, bypassing the idle threshold, and record a restore notice per
+    (source, user_id) exactly like the 24h idle sweep does — so every affected user sees the same
+    reminder/restore flow on their next message. Never wired into a schedule; this is explicit,
+    human-invoked, and one-shot."""
+    include_pinned = getattr(args, "include_pinned", False)
+    open_count = db.session_count()  # default filters already exclude archived
+    if not getattr(args, "yes", False):
+        scope = "ALL" if include_pinned else "ALL non-pinned"
+        if not _confirm_prompt(
+            f"This will force-archive {scope} {open_count} currently open session(s) "
+            f"system-wide, for every user on every platform, right now. Type 'y' to continue: "
+        ):
+            print("Aborted.")
+            return
+    from gateway.archive_notify import record_archive_notices
+    archived = db.force_archive_all_open_sessions(
+        exclude_pinned=not include_pinned, exclude_canonical_bot_chat=not include_pinned,
+    )
+    notified = record_archive_notices(db, archived)
+    scope_desc = "every open session" if include_pinned else "every open, non-pinned session"
+    print(
+        f"Force-archived {scope_desc}. {len(archived)} of them had a known "
+        f"user identity and were grouped into restore notices across {notified} identit(y/ies); "
+        f"each of those users will see a reminder + restore prompt on their next reply."
+    )
+
+
 def _cmd_stats(db, args):
     print(f"Total sessions: {db.session_count()}\nTotal messages: {db.message_count()}")
     for src in ("cli", "telegram", "discord", "whatsapp", "slack"):
@@ -1198,6 +1227,7 @@ _DB_HANDLERS = {
     "retitle-skills": _cmd_retitle_skills, "browse": _cmd_browse, "optimize": _cmd_optimize,
     "clean-markers": _cmd_clean_markers, "optimize-storage": _cmd_optimize_storage,
     "repair-routing": _cmd_repair_routing, "repair-prompts": _cmd_repair_prompts, "stats": _cmd_stats,
+    "force-archive-all": _cmd_force_archive_all,
 }
 
 

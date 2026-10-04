@@ -13,8 +13,6 @@ import logging
 import re
 from typing import Set
 
-from hermes_constants import get_hermes_dir
-
 logger = logging.getLogger(__name__)
 
 # WhatsApp JIDs are numeric (or plus-prefixed) with ``@``/``.``/``:`` separators.
@@ -72,7 +70,8 @@ def expand_whatsapp_aliases(identifier: str) -> Set[str]:
     normalized = normalize_whatsapp_identifier(identifier)
     if not normalized:
         return set()
-    session_dir = get_hermes_dir("platforms/whatsapp/session", "whatsapp/session")
+    from gateway.platforms.whatsapp_common import whatsapp_session_dir
+    session_dir = whatsapp_session_dir()
     resolved: Set[str] = set()
     queue = [normalized]
     while queue:

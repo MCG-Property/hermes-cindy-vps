@@ -10,6 +10,7 @@ import type { SessionInfo } from '@/hermes'
 import { createClientSessionState } from '@/lib/chat-runtime'
 import type * as ChatRuntime from '@/lib/chat-runtime'
 import { SESSION_ROW_AREAS, type SessionRowSlotProps } from '@/lib/session-row-slots'
+import { formatSydneyStamp } from '@/lib/time'
 import type * as Time from '@/lib/time'
 import type * as ComposerStatusStore from '@/store/composer-status'
 import type * as SessionStore from '@/store/session'
@@ -287,6 +288,92 @@ describe('SidebarSessionRow', () => {
     renderRow(makeSession({ title: 'Live row' }))
 
     expect(menuProps).toHaveBeenCalledWith(expect.objectContaining({ archived: false }))
+  })
+
+  it('exposes the exact session time through a focusable Tip trigger', () => {
+    // Pin the clock before deriving the timestamp.  The assertion below is
+    // about the *composition* of the label (relative age + absolute time),
+    // but "5 minutes ago" only falls on today when the run does not straddle
+    // local midnight.  Between 00:00 and 00:05 the row correctly renders
+    // "Yesterday at 11:5x PM" and this test failed for a day boundary it was
+    // never written to exercise.  Only `Date` is faked, so the component's
+    // own timers (the running arc, the tooltip open delay) keep running for
+    // real.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 2, 5, 12, 0, 0))
+
+    const startedAt = Math.floor(Date.now() / 1000) - 5 * 60
+
+    render(
+      <SidebarSessionRow
+        isPinned={false}
+        isSelected={false}
+        onArchive={noop}
+        onDelete={noop}
+        onPin={noop}
+        onResume={noop}
+        onToggleUnread={noop}
+        session={makeSession({ started_at: startedAt, title: 'Timestamped session' })}
+        unread={false}
+      />
+    )
+
+    const stamp = formatSydneyStamp(startedAt * 1000)
+    const age = screen.getByText(stamp)
+    expect(age.tagName).toBe('TIME')
+    expect(age.getAttribute('datetime')).toBe(new Date(startedAt * 1000).toISOString())
+    expect(age.getAttribute('aria-label')).toMatch(new RegExp(`^${stamp.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}, `))
+    expect(age.getAttribute('tabindex')).toBe('0')
+    expect(age.getAttribute('title')).toBeNull()
+    expect(tipTrigger(age)).toBeTruthy()
+  })
+
+  it('does not render a handoff avatar for a locally-started session', () => {
+    const { container } = render(
+      <SidebarSessionRow
+        isPinned={false}
+        isSelected={false}
+        onArchive={noop}
+        onDelete={noop}
+        onPin={noop}
+        onResume={noop}
+        onToggleUnread={noop}
+        session={makeSession({ title: 'Local session' })}
+        unread={false}
+      />
+    )
+
+    expect(handoffAvatar(container)).toBeNull()
+  })
+
+  it('wraps the handoff platform avatar in a Tip for a session started on another platform', () => {
+    const { container } = render(
+      <SidebarSessionRow
+        isPinned={false}
+        isSelected={false}
+        onArchive={noop}
+        onDelete={noop}
+        onPin={noop}
+        onResume={noop}
+        onToggleUnread={noop}
+        session={makeSession({
+          handoff_platform: 'telegram',
+          handoff_state: 'active',
+          title: 'Continued from Telegram'
+        })}
+        unread={false}
+      />
+    )
+
+    // PlatformAvatar is the REAL component here (see the note above the vi.mock
+    // block, #67500 third pass) — it renders the Telegram brand SVG rather
+    // than the platform name as text, so query the avatar span itself rather
+    // than text content, and confirm its tooltip trigger actually attaches to
+    // it — proving the real forwardRef/...rest path works, not a mock that
+    // fakes it.
+    const avatar = handoffAvatar(container)
+    expect(avatar).toBeTruthy()
+    expect(tipTrigger(avatar as HTMLElement)).toBeTruthy()
   })
 })
 

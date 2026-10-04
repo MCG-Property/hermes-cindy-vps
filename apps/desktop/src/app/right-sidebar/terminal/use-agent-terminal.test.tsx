@@ -27,6 +27,7 @@ const webglContextLossHandlers = vi.hoisted(() => [] as Array<() => void>)
 vi.mock('@xterm/xterm', () => ({
   Terminal: class {
     readonly buffer = { active: {} }
+    readonly cols = 80
     readonly rows = 24
     readonly unicode = { activeVersion: '6' }
     options: Record<string, unknown>
@@ -51,6 +52,7 @@ vi.mock('@xterm/xterm', () => ({
 vi.mock('@xterm/addon-fit', () => ({
   FitAddon: class {
     fit = vi.fn()
+    proposeDimensions = vi.fn(() => ({ cols: 80, rows: 24 }))
   }
 }))
 

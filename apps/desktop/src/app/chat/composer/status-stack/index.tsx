@@ -267,7 +267,18 @@ export function ComposerStatusStack({ onSubmit, queue, sessionId }: ComposerStat
       node: (
         <StatusSection
           accessory={
-            group.type === 'subagent' ? (
+            group.type === 'todo' ? (
+              <Button
+                aria-label="Add task"
+                className="text-muted-foreground/75 hover:text-foreground/90"
+                onClick={() => window.dispatchEvent(new CustomEvent('hermes-task-list-add'))}
+                size="micro"
+                type="button"
+                variant="text"
+              >
+                <Codicon name="add" size="0.8rem" />
+              </Button>
+            ) : group.type === 'subagent' ? (
               <Tip label={<TipKeybindLabel actionId="nav.agents" text={t.statusStack.agents} />}>
                 <Button
                   className="text-muted-foreground/75 hover:text-foreground/90"
@@ -290,7 +301,12 @@ export function ComposerStatusStack({ onSubmit, queue, sessionId }: ComposerStat
               />
             ) : undefined
           }
-          defaultCollapsed={group.type !== 'todo'}
+          // Stay open until the user has confirmed every remaining task.
+          defaultCollapsed={
+            group.type === 'todo'
+              ? !group.items.some(item => item.todoStatus === 'pending' || item.todoStatus === 'in_progress')
+              : true
+          }
           icon={<Codicon className="text-muted-foreground/70" name={GROUP_ICON[group.type]} size="0.8rem" />}
           label={groupLabel(group, t.statusStack)}
         >
@@ -301,6 +317,7 @@ export function ComposerStatusStack({ onSubmit, queue, sessionId }: ComposerStat
               onDismiss={sessionId ? id => dismissBackgroundProcess(sessionId, id) : undefined}
               onOpen={() => openSubagent(item)}
               onStop={sessionId ? id => void stopBackgroundProcess(sessionId, id) : undefined}
+              sessionId={sessionId}
             />
           ))}
         </StatusSection>

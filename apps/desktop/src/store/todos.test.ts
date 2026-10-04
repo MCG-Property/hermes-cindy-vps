@@ -15,7 +15,7 @@ import {
 
 const todo = (id: string, status: TodoItem['status']): TodoItem => ({ content: `task ${id}`, id, status })
 
-describe('setSessionTodos finished-list auto-clear', () => {
+describe('setSessionTodos task-list persistence', () => {
   beforeEach(() => {
     vi.useFakeTimers()
   })
@@ -33,29 +33,20 @@ describe('setSessionTodos finished-list auto-clear', () => {
     expect($todosBySession.get().s1).toHaveLength(2)
   })
 
-  it('drops the list shortly after every item completes', () => {
+  it('keeps a finished list until it is explicitly cleared', () => {
     setSessionTodos('s1', [todo('a', 'completed'), todo('b', 'cancelled')])
 
     expect($todosBySession.get().s1).toHaveLength(2)
 
-    vi.advanceTimersByTime(5_000)
+    vi.advanceTimersByTime(60_000)
 
-    expect($todosBySession.get().s1).toBeUndefined()
+    expect($todosBySession.get().s1).toHaveLength(2)
   })
 
-  it('clears finished lists for session ids that collide with object prototype keys', () => {
-    setSessionTodos('toString', [todo('a', 'completed')])
-
-    vi.advanceTimersByTime(5_000)
-
-    expect(Object.hasOwn($todosBySession.get(), 'toString')).toBe(false)
-  })
-
-  it('cancels the pending clear when a new active list arrives', () => {
+  it('keeps the same list mounted when a new active update arrives', () => {
     setSessionTodos('s1', [todo('a', 'completed')])
-    vi.advanceTimersByTime(2_000)
+    vi.advanceTimersByTime(60_000)
 
-    // The next turn starts a fresh plan before the linger expires.
     setSessionTodos('s1', [todo('a', 'completed'), todo('b', 'pending')])
     vi.advanceTimersByTime(60_000)
 
@@ -81,14 +72,14 @@ describe('clearActiveSessionTodos (turn-end cleanup)', () => {
     expect($todosBySession.get().s1).toBeUndefined()
   })
 
-  it('leaves a finished list to its normal linger instead of clearing immediately', () => {
+  it('leaves a finished list mounted instead of clearing it at turn end', () => {
     setSessionTodos('s1', [todo('a', 'completed')])
 
     clearActiveSessionTodos('s1')
 
     expect($todosBySession.get().s1).toHaveLength(1)
-    vi.advanceTimersByTime(5_000)
-    expect($todosBySession.get().s1).toBeUndefined()
+    vi.advanceTimersByTime(60_000)
+    expect($todosBySession.get().s1).toHaveLength(1)
   })
 
   it('is a no-op when the session has no todos', () => {

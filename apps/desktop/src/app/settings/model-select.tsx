@@ -42,6 +42,8 @@ interface ModelSelectProps {
   models: readonly string[]
   onValueChange: (model: string) => void
   value: string
+  /** Autofocused filter row in the dropdown -- open and type to narrow items. */
+  searchable?: boolean
 }
 
 /**
@@ -57,6 +59,7 @@ export function ModelSelect({
   onValueChange,
   provider,
   providerSlug,
+  searchable,
   value
 }: ModelSelectProps) {
   const { t } = useI18n()
@@ -143,7 +146,7 @@ export function ModelSelect({
       <SelectTrigger aria-label={ariaLabel} className={cn(className, CONTROL_TEXT)}>
         <SelectValue placeholder={m.model} />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent searchable={searchable}>
         {withActive(models, value).map(model => (
           <SelectItem key={model} value={toItemValue(model)}>
             {model}

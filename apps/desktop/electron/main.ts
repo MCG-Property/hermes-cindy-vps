@@ -404,6 +404,7 @@ import { loadNativeTokenSet, type NativeTokenStoreIo, persistNativeTokenSet } fr
 import { execGit, killTimedGitChildren, setNoConsoleGitRoots } from './no-console-git'
 import { registerNativeNotifications } from './notification-ipc'
 import { isExpectedOauthNavigationAbort } from './oauth-navigation'
+import { registerTerminalChime } from './terminal-chime'
 import { serializeJsonBody, setJsonRequestHeaders } from './oauth-net-request'
 import { LEGACY_OAUTH_PARTITION, resolveOauthPartition } from './oauth-partition'
 import {
@@ -17804,6 +17805,7 @@ const nativeNotifications = registerNativeNotifications({
   getMainWindow: (): BrowserWindow | null => mainWindow,
   focusWindow
 })
+registerTerminalChime()
 
 // Data-URL file load cap (composer attach + local previews). Main owns the
 // persisted MB value so every IPC read honours Settings → Chat without the

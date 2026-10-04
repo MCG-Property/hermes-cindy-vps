@@ -38,7 +38,7 @@ If a skill is missing from this list but present in the repo, the catalog is reg
 | [`architecture-diagram`](../user-guide/skills/bundled/creative/creative-architecture-diagram.md) | Dark-themed SVG architecture/cloud/infra diagrams as HTML. | `creative/architecture-diagram` |
 | [`ascii-video`](../user-guide/skills/bundled/creative/creative-ascii-video.md) | ASCII video: convert video/audio to colored ASCII MP4/GIF. | `creative/ascii-video` |
 | [`baoyu-infographic`](../user-guide/skills/bundled/creative/creative-baoyu-infographic.md) | Infographics: 21 layouts x 21 styles (信息图, 可视化). | `creative/baoyu-infographic` |
-| [`claude-design`](../user-guide/skills/bundled/creative/creative-claude-design.md) | Design one-off HTML artifacts (landing, deck, prototype). | `creative/claude-design` |
+| [`claude-design`](../user-guide/skills/bundled/creative/creative-claude-design.md) | Design one-off HTML artifacts (landing, deck, prototype) and preview them live in Desktop. | `creative/claude-design` |
 | [`design-md`](../user-guide/skills/bundled/creative/creative-design-md.md) | Author/validate/export Google's DESIGN.md token spec files. | `creative/design-md` |
 | [`humanizer`](../user-guide/skills/bundled/creative/creative-humanizer.md) | Humanize text: strip AI-isms and add real voice. | `creative/humanizer` |
 | [`manim-video`](../user-guide/skills/bundled/creative/creative-manim-video.md) | Manim CE animations: 3Blue1Brown math/algo videos. | `creative/manim-video` |

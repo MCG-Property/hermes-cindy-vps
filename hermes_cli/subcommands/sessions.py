@@ -127,6 +127,16 @@ def build_sessions_parser(subparsers, *, cmd_sessions: Callable) -> None:
         sessions_archive, "Only archive sessions older than AGE (duration like '5h'/'2d', "
         "bare number of days, or ISO timestamp)")
 
+    sessions_force_archive_all = sessions_subparsers.add_parser(
+        "force-archive-all",
+        help="ONE-TIME: force-archive every currently open session system-wide right now, "
+        "bypassing the idle threshold, and generate restore notices exactly like the 24h idle "
+        "sweep would. For operator/demo use — never run this on a schedule.")
+    add_yes_flag(sessions_force_archive_all, "Skip the interactive confirmation prompt")
+    _flag(sessions_force_archive_all, "--include-pinned",
+        help="Also archive pinned sessions (excluded by default — pin is a keep flag). "
+        "Includes Hermes's own canonical Bot Chat session.")
+
     sessions_optimize = sessions_subparsers.add_parser(
         "optimize", help="Reclaim disk space: merge FTS5 segments + VACUUM (no data change)")
     _flag(sessions_optimize, "--force",

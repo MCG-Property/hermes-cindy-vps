@@ -17483,6 +17483,12 @@ def test_model_save_key_uses_credential_lifecycle_and_picker_context(monkeypatch
     assert "result" in resp, resp
     assert resp["result"]["provider"] == {**provider, "authenticated": True}
     save_credential.assert_called_once_with(env_var, fake_key)
+    picker_context.assert_called_once_with(agent)
+    build_payload.assert_called_once_with(
+        picker_ctx,
+        picker_hints=True,
+        max_models=999,
+    )
 
 
 def test_model_save_key_reconciles_the_launch_profiles_stale_setup_record(monkeypatch, tmp_path):

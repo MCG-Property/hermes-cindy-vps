@@ -397,6 +397,11 @@ class TestV1Parts:
         params = {"contextId": "ctx-top", "message": protocol.text_message(protocol.ROLE_USER, "x")}
         assert protocol.extract_context_id(params) == "ctx-top"
 
+    def test_reply_session_id_extracted_from_message_metadata(self):
+        message = protocol.text_message(protocol.ROLE_USER, "final")
+        message["metadata"] = {"hermesReplySessionId": "20260920_010203_deadbeef"}
+        assert protocol.extract_reply_session_id({"message": message}) == "20260920_010203_deadbeef"
+
 
 class TestV1Task:
     def test_completed_task_shape(self):
@@ -506,7 +511,10 @@ class TestClientTools:
             )
 
         monkeypatch.setattr(tools, "_http_post_json", fake_post)
-        out = tools.a2a_call({"agent": "r", "message": "my key sk-abcdefghij1234567890ABCD please"})
+        out = tools.a2a_call(
+            {"agent": "r", "message": "my key sk-abcdefghij1234567890ABCD please"},
+            session_id="desktop-session-123",
+        )
         assert "here is the answer" in out
 
         params = captured["body"]["params"]
@@ -514,6 +522,7 @@ class TestClientTools:
         assert "contextId" not in params  # v1.0: not top-level
         assert msg["contextId"]           # v1.0: inside the Message
         assert msg["role"] == "ROLE_USER"
+        assert msg["metadata"] == {"hermesReplySessionId": "desktop-session-123"}
         part = msg["parts"][0]
         assert "kind" not in part
         assert part["mediaType"] == "text/plain"
@@ -596,6 +605,31 @@ class TestRegistryDispatchConvention:
         out = tools.a2a_call({"agent_name": "peer", "message": "ping"})
         assert captured.get("sent") is True
         assert "PONG" in out
+
+    def test_a2a_call_uses_scoped_session_when_runtime_session_is_absent(self, monkeypatch):
+        """Desktop deferred-tool calls preserve the turn ContextVar even when the
+        bridge does not forward a ``session_id`` keyword to the handler."""
+        monkeypatch.setattr(tools, "_load_config",
+                            lambda: {"a2a_agents": {"peer": {"url": "http://localhost:9999"}}})
+        monkeypatch.setattr(tools, "_http_get_json", lambda url, h, t: None)
+        import gateway.session_context as session_context
+        monkeypatch.setattr(session_context, "session_context_engaged", lambda: True)
+        monkeypatch.setattr(session_context, "get_session_env",
+                            lambda name, default="": "desktop-origin-session"
+                            if name == "HERMES_SESSION_ID" else default)
+        captured = {}
+
+        def fake_post(url, body, headers, timeout):
+            captured["metadata"] = body["params"]["message"].get("metadata")
+            return protocol.jsonrpc_result(
+                body["id"],
+                protocol.build_task("t", "c1", protocol.STATE_COMPLETED, "PONG"),
+            )
+
+        monkeypatch.setattr(tools, "_http_post_json", fake_post)
+        out = tools.a2a_call({"agent": "peer", "message": "ping"})
+        assert "PONG" in out
+        assert captured["metadata"] == {"hermesReplySessionId": "desktop-origin-session"}
 
 
 # --------------------------------------------------------------------------
@@ -1387,6 +1421,28 @@ class TestMultiAgentRouting:
         assert terminal["status"]["state"] == protocol.STATE_COMPLETED
         assert protocol.extract_text(terminal["artifacts"][0]) == "dev reply"
         assert adapter.tasks.get(terminal["id"])["state"] == protocol.STATE_COMPLETED
+
+    def test_exact_session_callback_bypasses_new_a2a_chat(self, monkeypatch):
+        from plugins.platforms.a2a.adapter import A2AAdapter
+        from gateway.config import PlatformConfig
+
+        adapter = A2AAdapter(PlatformConfig(enabled=True))
+        seen = {}
+
+        def fake_forward(session_id, framed_text):
+            seen["session_id"] = session_id
+            seen["text"] = framed_text
+            return "origin reply", protocol.STATE_COMPLETED
+
+        adapter._forward_to_existing_session = fake_forward  # type: ignore
+        message = protocol.text_message(protocol.ROLE_USER, "provider final", context_id="origin-context")
+        message["metadata"] = {"hermesReplySessionId": "20260920_010203_deadbeef"}
+        terminal, pending = adapter._prepare_task({"message": message}, "peer-x")
+
+        assert pending is None
+        assert seen["session_id"] == "20260920_010203_deadbeef"
+        assert "provider final" in seen["text"]
+        assert protocol.extract_text(terminal["artifacts"][0]) == "origin reply"
 
 
 class TestClientTenantAndDiscovery:

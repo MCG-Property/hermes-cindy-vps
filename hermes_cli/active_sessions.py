@@ -169,7 +169,16 @@ def session_already_owned_message(session_id: str, entry: dict[str, Any]) -> str
 
 
 def _registry_home(registry_home: str | Path | None = None) -> Path:
-    return Path(registry_home) if registry_home is not None else Path(get_hermes_home())
+    """Return the shared Hermes home for the active-session registry.
+
+    An empty optional override is not a home; fall back to the resolved Hermes
+    home so refusal messages always identify the actual registry path.
+    """
+    if registry_home is not None:
+        candidate = str(registry_home).strip()
+        if candidate:
+            return Path(candidate).expanduser()
+    return Path(get_hermes_home()).expanduser()
 
 
 def _state_path(registry_home: str | Path | None = None) -> Path:

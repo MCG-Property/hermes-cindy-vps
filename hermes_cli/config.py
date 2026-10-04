@@ -2506,6 +2506,25 @@ def _commented_sections_for_save(normalized: Dict[str, Any]) -> Optional[str]:
     return "".join(parts) or None
 
 
+def _fanout_desktop_settings_models() -> None:
+    """After Desktop Settings write config.yaml, update every satellite default."""
+    if os.environ.get("HERMES_SETTINGS_SYNC_ACTIVE") == "1":
+        return
+    sync = Path(os.environ.get("HERMES_HOME", str(Path.home() / ".hermes"))) / "scripts" / "desktop_settings_model_sync.py"
+    if not sync.is_file():
+        return
+    try:
+        subprocess.Popen(
+            [sys.executable, str(sync), "--from-save"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            env={**os.environ, "HERMES_SETTINGS_SYNC_ACTIVE": "0"},
+        )
+    except OSError:
+        logger.debug("desktop settings model sync spawn failed", exc_info=True)
+
+
 def save_config(
     config: Dict[str, Any], *, strip_defaults: bool = True,
     preserve_keys: Optional[Set[Tuple[str, ...]]] = None, merge_existing: bool = False):
@@ -2549,6 +2568,7 @@ def save_config(
         _secure_file(config_path)
         _RAW_CONFIG_CACHE.pop(str(config_path), None)
         _LAST_EXPANDED_CONFIG_BY_PATH[str(config_path)] = copy.deepcopy(current_normalized)
+        _fanout_desktop_settings_models()
     from hermes_cli.observability.shared_metrics_disabled import record_config_saved
     record_config_saved(_raw_for_paths, current_normalized)
 

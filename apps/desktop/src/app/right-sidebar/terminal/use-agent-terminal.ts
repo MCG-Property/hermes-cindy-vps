@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'react'
 
 import { writeClipboardText } from '@/components/ui/copy-button'
 import { triggerHaptic } from '@/lib/haptics'
+import { isWindowsPlatform } from '@/lib/platform'
 import { useTheme } from '@/themes/context'
 
 import { registerAgentTerminalWriter } from './agent-terminal-stream'
@@ -14,6 +15,7 @@ import { mirrorSelection, terminalClipboardIntent } from './clipboard'
 import { terminalLinkHandler, terminalWebLinksAddon } from './links'
 import { isMacPlatform, resolveSurfaceColor, terminalTheme } from './selection'
 import { registerTerminalContextMenu } from './terminal-context-menu'
+import { shouldApplyTerminalFit, type TerminalSize } from './terminal-fit'
 import { prepareTerminalFontFamily } from './terminal-font'
 import { redrawAllTerminals, registerWebglRefresh } from './terminals'
 import { useTerminalFontController } from './use-terminal-font'
@@ -67,7 +69,7 @@ export function useAgentTerminal({ active, id, procId }: { active: boolean; id: 
     const term = new Terminal({
       allowProposedApi: true,
       allowTransparency: false,
-      convertEol: true,
+      convertEol: isWindowsPlatform(),
       cursorBlink: false,
       disableStdin: true,
       fontFamily: latestFontFamilyRef.current,
@@ -75,7 +77,7 @@ export function useAgentTerminal({ active, id, procId }: { active: boolean; id: 
       fontWeight: 'normal',
       fontWeightBold: 'bold',
       letterSpacing: 0,
-      lineHeight: 1.12,
+      lineHeight: 1,
       linkHandler: terminalLinkHandler,
       minimumContrastRatio: 4.5,
       scrollback: 1000,
@@ -127,13 +129,35 @@ export function useAgentTerminal({ active, id, procId }: { active: boolean; id: 
       return false
     })
 
-    fitRef.current = () => {
-      if (host.clientWidth > 0 && host.clientHeight > 0) {
-        try {
-          fit.fit()
-        } catch {
-          // Mid-transition layout — the next observer tick refits.
-        }
+    let lastFitSize: TerminalSize | null = null
+    let lastFitAt = 0
+
+    fitRef.current = visible => {
+      if (host.clientWidth <= 0 || host.clientHeight <= 0) {
+        return
+      }
+
+      let proposed: { cols: number; rows: number } | undefined
+
+      try {
+        proposed = fit.proposeDimensions()
+      } catch {
+        return
+      }
+
+      const now = Date.now()
+
+      if (!shouldApplyTerminalFit(proposed, lastFitSize, now, lastFitAt)) {
+        return
+      }
+
+      try {
+        fit.fit()
+        lastFitSize = { cols: term.cols, rows: term.rows }
+        lastFitAt = now
+        markRightPanePerf(visible ? 'terminal-fit-active' : 'terminal-fit-hidden', id)
+      } catch {
+        // Mid-transition layout — the next observer tick refits.
       }
     }
 

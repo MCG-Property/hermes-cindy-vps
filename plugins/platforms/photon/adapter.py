@@ -906,9 +906,8 @@ class PhotonAdapter(BasePlatformAdapter):
         return True
 
     async def _reap_stale_sidecar(self) -> None:
-        """Kill an orphaned sidecar squatting our port (a SIGKILLed gateway leaves one whose
-        token we don't know, so every respawn dies on EADDRINUSE). Listeners are verified
-        by command line before being signalled."""
+        """Kill any process squatting our port (a SIGKILLed gateway leaves one whose
+        token we don't know, so every respawn dies on EADDRINUSE). We own this port."""
         if sys.platform == "win32":  # lsof/ps; orphaning is a POSIX-only path
             return
         try:
@@ -917,32 +916,24 @@ class PhotonAdapter(BasePlatformAdapter):
         except httpx.RequestError:
             return  # nothing listening — the normal case
         # Off the loop: lsof + one `ps` per pid can hold it 5+5·N s, on every reconnect.
-        def _inspect():
-            found = self._find_listener_pids(self._sidecar_port)
-            mine = [pid for pid in found if self._pid_is_sidecar(pid)]
-            return mine, [pid for pid in found if pid not in mine]
-        stale, foreign = await asyncio.to_thread(_inspect)
+        found = await asyncio.to_thread(self._find_listener_pids, self._sidecar_port)
         fix = "free it or set PHOTON_SIDECAR_PORT to a different port"
-        if not stale:
-            raise RuntimeError(f"port {self._sidecar_port} is in use by another process "
-                               f"(pids: {foreign or 'unknown'}, not a Photon sidecar) — {fix}")
+        if not found:
+            raise RuntimeError(f"port {self._sidecar_port} is in use but no listeners found — {fix}")
 
         def _kill(pid: int, sig: int) -> None:
             with contextlib.suppress(OSError):
                 os.kill(pid, sig)  # windows-footgun: ok — unreachable on win32 (early return above)
-        for pid in stale:
-            logger.warning("[photon] reaping orphaned sidecar (pid %d) on port %d", pid, self._sidecar_port)
+        for pid in found:
+            logger.warning("[photon] reaping process (pid %d) on port %d", pid, self._sidecar_port)
             _kill(pid, signal.SIGTERM)
         deadline = time.time() + 3.0
-        while time.time() < deadline and any(self._pid_alive(p) for p in stale):
+        while time.time() < deadline and any(self._pid_alive(p) for p in found):
             await asyncio.sleep(0.1)
-        for pid in stale:
+        for pid in found:
             if self._pid_alive(pid):
                 _kill(pid, signal.SIGKILL)  # windows-footgun: ok — unreachable on win32 (early return above)
         await asyncio.sleep(0.2)  # let the OS release the listening socket
-        if foreign:
-            raise RuntimeError(
-                f"port {self._sidecar_port} is also held by non-sidecar processes (pids: {foreign}) — {fix}")
 
     async def _ensure_sidecar_deps(self) -> None:
         """Cold-install or refresh sidecar node_modules before spawn (off the loop)."""

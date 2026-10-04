@@ -1434,6 +1434,24 @@ def _(rid, params: dict, session: dict) -> dict:
     usage: dict = _session_usage_snapshot(session)
     if session.get("agent") is None and not usage:
         usage = {"calls": 0, "input": 0, "output": 0, "total": 0}
+    with contextlib.suppress(Exception):
+        import sys
+        from pathlib import Path
+        scripts = Path("/home/hermes/.hermes/scripts")
+        if str(scripts) not in sys.path:
+            sys.path.insert(0, str(scripts))
+        from spend_tracker import snapshot as spend_snapshot
+        sid = str(session.get("session_key") or params.get("session_id") or "")
+        spend = spend_snapshot(sid)
+        usage.update({
+            "cost_usd": spend["session_usd"],
+            "hourly_cost_usd": spend["hour_usd"],
+            "daily_cost_usd": spend["day_usd"],
+            "last_request_cost_usd": spend["last_request_usd"],
+            "cost_guard_active": spend["over_limit"],
+            "cost_guard_limit_usd": spend["limit_usd"],
+            "cost_guard_reset_in_s": spend["reset_in_s"],
+        })
     # Nous credits are agent-independent (portal fetch); fail-open when absent.
     with contextlib.suppress(Exception):
         from agent.account_usage import nous_credits_lines
@@ -2435,6 +2453,18 @@ def _correction_method(name: str, verb: str, accepted_status: str, supported, un
         if err:
             return err
         agent = session.get("agent")
+        # Queue-by-default while a turn or process is running. Packaged Desktop
+        # Enter still calls session.redirect; without this latch that path
+        # interrupts the live turn. Pass interrupt=true for an explicit redirect
+        # (queue-panel Steer). Send-now / Stop stay on session interrupt.
+        if (
+            verb == "redirect"
+            and session.get("running")
+            and not is_truthy_value(params.get("interrupt"))
+        ):
+            _enqueue_prompt(session, text, current_transport() or _stdio_transport)
+            session["last_active"] = time.time()
+            return _ok(rid, {"status": "queued", "text": text})
         # Redirect during the turn-build window (running=True, agent None): queue for the next turn instead of
         # a misleading 4010 the client swallows into a lost follow-up.
         if verb == "redirect" and agent is None and session.get("running"):

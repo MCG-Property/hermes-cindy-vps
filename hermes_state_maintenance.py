@@ -319,6 +319,73 @@ class SessionMaintenanceMixin:
             self._auto_archive_lineage(row[0])
         return len(rows)
 
+    def archive_stale_sessions_detailed(
+        self, idle_days: float, *, exclude_pinned: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """Same candidate set and archiving action as :meth:`archive_stale_sessions`, but returns
+        ``(session_id, source, user_id, title)`` for every row actually archived, so the caller can
+        build per-identity archive-restore notices. Rows with no ``user_id`` are still archived but
+        excluded from the returned list (nothing to group a notice under)."""
+        if idle_days is None or idle_days < 0:
+            return []
+        cutoff = time.time() - float(idle_days) * 86400.0
+        pin_clause = "AND s.pinned = 0" if exclude_pinned else ""
+        rows = self._read_all(
+            f"""
+            SELECT s.id, s.source, s.user_id, s.title FROM sessions s
+            WHERE s.archived = 0
+              AND COALESCE(s.end_reason, '') <> 'compression'
+              {pin_clause}
+              AND NOT (COALESCE(s.hidden, 0) <> 0 AND COALESCE(s.title, '') = ?)
+              AND {_sql_session_last_active("s")} < ?
+            ORDER BY s.started_at ASC
+            """, (self.CANONICAL_BOT_CHAT_TITLE, cutoff))
+        archived: List[Dict[str, Any]] = []
+        for row in rows:
+            self.set_session_archived(row[0], True)
+            if row[1]:
+                # Some channels (e.g. the Hermes Desktop app's own direct chat) never populate a
+                # per-user id at all -- they're inherently single-operator, so fall back to a
+                # shared "" identity for that source rather than silently dropping the notice.
+                archived.append({
+                    "session_id": row[0], "source": row[1], "user_id": row[2] or "",
+                    "title": row[3] or "(untitled)", "archived_at": time.time(),
+                })
+        return archived
+
+    def force_archive_all_open_sessions(
+        self, *, exclude_pinned: bool = True, exclude_canonical_bot_chat: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """One-time, bypass-idle-threshold force-archive of every currently non-archived session,
+        system-wide. NOT wired into any recurring housekeeping chore -- invoke explicitly, once.
+        Returns the same per-row shape as :meth:`archive_stale_sessions_detailed` so callers feed
+        the identical notice path. ``exclude_canonical_bot_chat=False`` archives even Hermes's own
+        reserved hidden Bot Chat session -- only for a deliberate, literal "archive everything"
+        request; it releases that identity's registry title to the next Bot open."""
+        pin_clause = "AND s.pinned = 0" if exclude_pinned else ""
+        bot_chat_clause = (
+            "AND NOT (COALESCE(s.hidden, 0) <> 0 AND COALESCE(s.title, '') = ?)"
+            if exclude_canonical_bot_chat else ""
+        )
+        params: tuple = (self.CANONICAL_BOT_CHAT_TITLE,) if exclude_canonical_bot_chat else ()
+        rows = self._read_all(
+            f"""
+            SELECT s.id, s.source, s.user_id, s.title FROM sessions s
+            WHERE s.archived = 0
+              AND COALESCE(s.end_reason, '') <> 'compression'
+              {pin_clause}
+              {bot_chat_clause}
+            """, params)
+        archived: List[Dict[str, Any]] = []
+        for row in rows:
+            self.set_session_archived(row[0], True)
+            if row[1]:
+                archived.append({
+                    "session_id": row[0], "source": row[1], "user_id": row[2] or "",
+                    "title": row[3] or "(untitled)", "archived_at": time.time(),
+                })
+        return archived
+
     def prune_sessions(self, older_than_days: Optional[float] = 90, source: str = None,
                        sessions_dir: Optional[Path] = None, exclude_active_write_guards: bool = False,
                        **filters) -> int:

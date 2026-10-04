@@ -16,7 +16,7 @@
  *   GET  /health         - Health check
  *
  * Usage:
- *   node bridge.js --port 3000 --session ~/.hermes/whatsapp/session
+ *   node bridge.js --port 3000 --session ~/.hermes/platforms/whatsapp/session
  */
 
 import { makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, downloadMediaMessage, getAggregateVotesInPollMessage, decryptPollVote, getKeyAuthor, jidNormalizedUser } from '@whiskeysockets/baileys';
@@ -39,6 +39,7 @@ import {
   createReconnectScheduler,
   createVersionResolver,
   installConsoleStamps,
+  finalizePairOnlySession,
   buildLocationPayload,
   buildTextSendPayload,
   createBoundedMessageStore,
@@ -94,7 +95,12 @@ const SEND_READ_RECEIPTS =
   ['1', 'true', 'yes', 'on'].includes(process.env.WHATSAPP_SEND_READ_RECEIPTS.toLowerCase());
 
 const PORT = parseInt(getArg('port', '3000'), 10);
-const SESSION_DIR = getArg('session', path.join(process.env.HOME || '~', '.hermes', 'whatsapp', 'session'));
+// Prefer the canonical platforms/ layout; Python always passes --session via
+// whatsapp_session_dir() (which still honours a populated legacy whatsapp/session).
+const SESSION_DIR = getArg(
+  'session',
+  path.join(process.env.HOME || '~', '.hermes', 'platforms', 'whatsapp', 'session'),
+);
 // Cache directories: the Python gateway passes the profile-aware paths via
 // env (HERMES_HOME-aware, new cache/ layout).  Fall back to the legacy
 // hardcoded locations for bridges launched outside the gateway.
@@ -409,7 +415,15 @@ async function startSocket() {
     },
   });
 
-  sock.ev.on('creds.update', () => { saveCreds(); lidToPhone = buildLidMap(); });
+  sock.ev.on('creds.update', () => {
+    // saveCreds is async — must not fire-and-forget or PAIR_ONLY exit can kill
+    // the process mid-write and leave a creds.json the gateway treats as unpaired.
+    void Promise.resolve(saveCreds()).then(() => {
+      lidToPhone = buildLidMap();
+    }).catch((err) => {
+      console.error('Failed to persist WhatsApp credentials:', err?.message || err);
+    });
+  });
 
   sock.ev.on('connection.update', (update) => {
     const { connection, lastDisconnect, qr } = update;
@@ -460,11 +474,27 @@ async function startSocket() {
         console.log('✅ WhatsApp connected!');
       }
       if (PAIR_ONLY) {
-        if (!PAIR_JSON) {
-          console.log('✅ Pairing complete. Credentials saved.');
-        }
-        // Give Baileys a moment to flush creds, then exit cleanly
-        setTimeout(() => process.exit(0), 2000);
+        void (async () => {
+          const result = await finalizePairOnlySession({
+            saveCreds,
+            sockUserId: sock?.user?.id,
+            credsMeId: state?.creds?.me?.id,
+          });
+          if (!result.ok) {
+            emitPairEvent({ event: 'error', error: result.error || 'pair_finalize_failed' });
+            if (!PAIR_JSON) {
+              console.error(
+                result.error === 'connected_without_identity'
+                  ? '❌ Connected but WhatsApp identity was not persisted. Re-run pairing.'
+                  : `❌ Failed to flush WhatsApp credentials: ${result.error}`,
+              );
+            }
+            return;
+          }
+          if (!PAIR_JSON) {
+            console.log('✅ Pairing complete. Credentials saved.');
+          }
+        })();
       }
     }
   });

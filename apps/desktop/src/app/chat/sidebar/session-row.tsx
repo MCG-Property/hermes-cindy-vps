@@ -23,7 +23,7 @@ import { displayModelName } from '@/lib/model-status-label'
 import { sessionProjectLabel } from '@/lib/session-project-label'
 import { SESSION_ROW_AREAS } from '@/lib/session-row-slots'
 import { handoffOriginSource, sessionSourceLabel } from '@/lib/session-source'
-import { coarseElapsed } from '@/lib/time'
+import { formatSydneyStamp } from '@/lib/time'
 import { useStoreSelector } from '@/lib/use-session-slice'
 import { cn } from '@/lib/utils'
 import { $sidebarRowMeta } from '@/store/layout'
@@ -84,7 +84,6 @@ interface SidebarSessionRowProps extends React.ComponentProps<'div'> {
   card?: boolean
 }
 
-const AGE_KEY = { day: 'ageDay', hour: 'ageHour', minute: 'ageMin' } as const
 
 // Hover marquee (card title): measure the actual overflow on pointerenter and
 // arm the CSS animation only when there is some — CSS can't detect overflow on
@@ -118,11 +117,8 @@ function disarmMarquee(event: React.PointerEvent<HTMLElement>) {
 const TAIL_HIDES = 'session-row-tail min-w-5 transition-opacity group-hover:opacity-0'
 const KEBAB_YIELDS = 'session-row-kebab'
 
-function formatAge(seconds: number, r: Translations['sidebar']['row']): string {
-  const { unit, value } = coarseElapsed(Date.now() - seconds * 1000)
-
-  // Under a minute reads as "now" — the sidebar never shows a seconds tick.
-  return unit === 'second' ? r.ageNow : `${value}${r[AGE_KEY[unit]]}`
+function formatAge(seconds: number, _r: Translations['sidebar']['row']): string {
+  return formatSydneyStamp(seconds * 1000)
 }
 
 function SidebarSessionRowImpl({

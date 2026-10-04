@@ -9,6 +9,7 @@ import type { CSSProperties } from 'react'
 import { writeClipboardText } from '@/components/ui/copy-button'
 import { triggerHaptic } from '@/lib/haptics'
 import { isComposerChord } from '@/lib/keybinds/chords'
+import { isWindowsPlatform } from '@/lib/platform'
 import { $previewTarget } from '@/store/preview'
 import { useTheme } from '@/themes/context'
 
@@ -26,7 +27,19 @@ import {
   terminalTheme
 } from './selection'
 import { registerTerminalContextMenu } from './terminal-context-menu'
+import { announceTerminalBell, isNotificationOsc9 } from './terminal-bell'
+import { shouldApplyTerminalFit, type TerminalSize } from './terminal-fit'
 import { prepareTerminalFontFamily } from './terminal-font'
+import {
+  createTuiWheelDispatcher,
+  inkPageKey,
+  isCursorChromeForWheel,
+  isTuiTitleForWheel,
+  nextTuiWheelLatch,
+  shouldFreezeTerminalFitForWheel,
+  shouldSendTuiWheelToPty,
+  tuiXtermScrollback
+} from './terminal-wheel'
 import {
   closeTerminal,
   redrawAllTerminals,
@@ -247,6 +260,10 @@ interface UseTerminalSessionOptions {
   restoreCwd?: string
   /** Serialized scrollback from the previous session, replayed once on mount. */
   reviveBuffer?: string
+  /** Cursor CLI chat this pane should `--resume` if its tmux session is gone. */
+  cursorChatId?: string
+  /** Restored tabs reattach tmux or start `agent --resume`. Fresh tabs do not. */
+  resumeOnCreate?: boolean
   /** Reports the resolved shell name once the PTY is live (for the tab label). */
   onShell?: (shell: string) => void
 }
@@ -391,6 +408,8 @@ export function useTerminalSession({
   onAddSelectionToChat,
   restoreCwd,
   reviveBuffer,
+  cursorChatId,
+  resumeOnCreate,
   onShell
 }: UseTerminalSessionOptions) {
   // Key off renderedMode (the painted surface type), not resolvedMode (the
@@ -415,6 +434,8 @@ export function useTerminalSession({
   // The cwd to boot the fresh PTY in — the last dir the prior session observed
   // (survives a `cd`), captured once so store-driven re-renders don't move it.
   const initialRestoreCwdRef = useRef(restoreCwd)
+  const initialCursorChatIdRef = useRef(cursorChatId)
+  const initialResumeOnCreateRef = useRef(resumeOnCreate)
   // Latest cwd seen this session; de-dupes redundant store writes.
   const lastObservedCwdRef = useRef<string | null>(null)
   // Whether the user ever fed input into this session (keystrokes, paste,
@@ -434,6 +455,7 @@ export function useTerminalSession({
   const [selection, setSelection] = useState('')
   const [selectionStyle, setSelectionStyle] = useState<CSSProperties | null>(null)
   const [shellName, setShellName] = useState('shell')
+  const tuiScrollRef = useRef(Boolean(resumeOnCreate || cursorChatId))
 
   // eslint-disable-next-line no-restricted-syntax -- legitimate non-atom ref write (see eslint rule comment)
   useEffect(() => {
@@ -520,10 +542,14 @@ export function useTerminalSession({
 
     let disposed = false
     const cleanup: Array<() => void> = []
-    let lastSentSize: { cols: number; rows: number } | null = null
+    let lastSentSize: TerminalSize | null = null
+    let lastFitAt = 0
+    let lastWheelAt = 0
 
     const term = new Terminal({
       allowProposedApi: true,
+      // BEL / OSC 9 ride the SSH PTY from the VPS Cursor stop script. We play
+      // the Mac chime in onBell; xterm's own beep is muted in Electron.
       // ⌥-drag is our force-selection gesture (below), and xterm's default
       // alt-click-moves-cursor claims the same click, emitting one cursor
       // left/right escape per column of travel — shells that don't consume them
@@ -534,7 +560,10 @@ export function useTerminalSession({
       // reads soft on every platform; VS Code keeps it off and our surface
       // (--ui-bg-chrome) is opaque anyway, so withSurface paints it solid.
       allowTransparency: false,
-      convertEol: true,
+      // Windows consoles often emit bare LF; POSIX PTYs and TUIs (Cursor,
+      // vim, hermes --tui) already send their own CR. Forcing CRLF on those
+      // redraws the screen one row off and looks like rapid scroll jitter.
+      convertEol: isWindowsPlatform(),
       cursorBlink: true,
       fontFamily: latestFontFamilyRef.current,
       fontSize: 11,
@@ -543,7 +572,9 @@ export function useTerminalSession({
       fontWeight: 'normal',
       fontWeightBold: 'bold',
       letterSpacing: 0,
-      lineHeight: 1.12,
+      // Integer cell metrics. 1.12 × 11px = 12.32 and FitAddon then
+      // oscillates rows on every 1px overlay chase, WINCH'ing Cursor.
+      lineHeight: 1,
       // OSC 8 hyperlinks (gh, cargo, npm, ls --hyperlink) activate through this
       // handler; without it xterm shows a raw confirm() and then a window.open
       // Electron denies.
@@ -602,11 +633,23 @@ export function useTerminalSession({
 
     const cwdOscHandlers = ([7, 9] as const).map(code =>
       term.parser.registerOscHandler(code, payload => {
+        if (code === 9 && isNotificationOsc9(payload)) {
+          void announceTerminalBell()
+
+          return true
+        }
+
         recordCwd(parseOscCwd(code, payload))
 
         return false // let the sequence propagate; we only observe it
       })
     )
+
+    const bellDisposable = term.onBell(() => {
+      void announceTerminalBell()
+    })
+
+    cleanup.push(() => bellDisposable.dispose())
 
     cleanup.push(() => cwdOscHandlers.forEach(handler => handler.dispose()))
 
@@ -764,10 +807,140 @@ export function useTerminalSession({
       term.write(next)
     }
 
-    const fitAndResize = () => {
+    const onWheel = () => {
+      lastWheelAt = Date.now()
+    }
+
+    // Passive: stamp only. xterm owns scroll / mouse-protocol encoding.
+    host.addEventListener('wheel', onWheel, { capture: true, passive: true })
+    cleanup.push(() => {
+      host.removeEventListener('wheel', onWheel, true)
+    })
+
+    let windowTitle = ''
+    // Sticky for Cursor/resume tabs. Prefer Page Up over xterm history even if
+    // OSC title briefly says zsh — scrollback is 0 in TUI and scrollPages no-ops.
+    let tuiLatched = Boolean(resumeOnCreate || cursorChatId)
+    let cursorSticky = Boolean(resumeOnCreate || cursorChatId)
+    tuiScrollRef.current = true
+    const syncTuiViewport = (chrome = '', allowUnlatch = !cursorSticky) => {
+      if (isCursorChromeForWheel(chrome) || isTuiTitleForWheel(windowTitle) || resumeOnCreate || cursorChatId) {
+        cursorSticky = true
+        tuiLatched = true
+      }
+
+      tuiLatched = cursorSticky || nextTuiWheelLatch(tuiLatched, term.buffer.active.type, windowTitle, chrome, allowUnlatch)
+      const isTui =
+        cursorSticky || shouldSendTuiWheelToPty(term.buffer.active.type, windowTitle, false, tuiLatched, allowUnlatch)
+      tuiScrollRef.current = isTui || Boolean(resumeOnCreate || cursorChatId)
+      const nextScrollback = tuiXtermScrollback(tuiScrollRef.current)
+
+      if (term.options.scrollback !== nextScrollback) {
+        term.options.scrollback = nextScrollback
+      }
+
+      if (tuiScrollRef.current) {
+        term.scrollToBottom()
+      }
+    }
+
+    const titleDisposable = term.onTitleChange(next => {
+      windowTitle = next
+      syncTuiViewport()
+    })
+    cleanup.push(() => titleDisposable.dispose())
+
+    let pixelCarry = 0
+    const wheel = createTuiWheelDispatcher({
+      getBufferType: () => term.buffer.active.type,
+      getHost: () => host,
+      getLatched: () => tuiLatched,
+      getPixelCarry: () => pixelCarry,
+      getSessionId: () => sessionIdRef.current,
+      getTitle: () => windowTitle,
+      isSticky: () => cursorSticky || Boolean(resumeOnCreate || cursorChatId) || tuiScrollRef.current,
+      scrollToBottom: () => term.scrollToBottom(),
+      setLatched: value => {
+        tuiLatched = value
+      },
+      setPixelCarry: value => {
+        pixelCarry = value
+      },
+      write: (id, data) => {
+        lastWheelAt = Date.now()
+        void terminalApi.write(id, data)
+      }
+    })
+    const sendTuiWheel = (event: WheelEvent) => {
+      lastWheelAt = Date.now()
+      syncTuiViewport('', false)
+
+      return wheel.send(event)
+    }
+    const onWindowWheel = (event: WheelEvent) => {
+      lastWheelAt = Date.now()
+      syncTuiViewport('', false)
+      wheel.onWindowWheel(event)
+    }
+
+    window.addEventListener('wheel', onWindowWheel, { capture: true, passive: false })
+    host.addEventListener('wheel', sendTuiWheel, { capture: true, passive: false })
+    const onPageKey = (event: KeyboardEvent) => {
+      const active = document.activeElement
+      if (!(active instanceof Node) || !host.contains(active)) {
+        return
+      }
+
+      if (event.key !== 'PageUp' && event.key !== 'PageDown') {
+        return
+      }
+
+      if (!tuiScrollRef.current) {
+        return
+      }
+
+      event.preventDefault()
+      event.stopPropagation()
+      lastWheelAt = Date.now()
+      syncTuiViewport('', false)
+      const id = sessionIdRef.current
+
+      if (id) {
+        void terminalApi.write(id, inkPageKey(event.key === 'PageUp' ? -1 : 1))
+      }
+    }
+    window.addEventListener('keydown', onPageKey, { capture: true })
+    cleanup.push(() => {
+      window.removeEventListener('wheel', onWindowWheel, true)
+      host.removeEventListener('wheel', sendTuiWheel, true)
+      window.removeEventListener('keydown', onPageKey, true)
+    })
+
+    term.attachCustomWheelEventHandler(event => !sendTuiWheel(event))
+
+    const fitAndResize = (visible = true) => {
       if (disposed || !host.isConnected || host.clientWidth <= 0 || host.clientHeight <= 0) {
         return
       }
+
+      if (shouldFreezeTerminalFitForWheel(Date.now(), lastWheelAt)) {
+        return
+      }
+
+      let proposed: { cols: number; rows: number } | undefined
+
+      try {
+        proposed = fit.proposeDimensions()
+      } catch {
+        return
+      }
+
+      const now = Date.now()
+
+      if (!shouldApplyTerminalFit(proposed, lastSentSize, now, lastFitAt)) {
+        return
+      }
+
 
       try {
         fit.fit()
@@ -775,12 +948,19 @@ export function useTerminalSession({
         return
       }
 
-      const id = sessionIdRef.current
+      const sessionId = sessionIdRef.current
+      const next = { cols: term.cols, rows: term.rows }
 
-      if (id && (lastSentSize?.cols !== term.cols || lastSentSize?.rows !== term.rows)) {
-        lastSentSize = { cols: term.cols, rows: term.rows }
-        void terminalApi.resize(id, { cols: term.cols, rows: term.rows })
+      if (!sessionId || (lastSentSize?.cols === next.cols && lastSentSize?.rows === next.rows)) {
+        lastSentSize = next
+        lastFitAt = now
+
+        return
       }
+
+      lastSentSize = next
+      lastFitAt = now
+      void terminalApi.resize(sessionId, next)
     }
 
     fitRef.current = fitAndResize
@@ -923,7 +1103,14 @@ export function useTerminalSession({
         // Prefer the prior session's last cwd so a reopened tab lands where the
         // user last `cd`'d; the main side falls back to the launch cwd (then
         // home) if that dir no longer exists.
-        .start({ cols: term.cols, cwd: initialRestoreCwdRef.current || cwd, rows: term.rows })
+        .start({
+          cols: term.cols,
+          cwd: initialRestoreCwdRef.current || cwd,
+          cursorChatId: initialCursorChatIdRef.current,
+          persistKey: id,
+          resumeOnCreate: Boolean(initialResumeOnCreateRef.current),
+          rows: term.rows
+        })
         .then(async session => {
           if (disposed) {
             void terminalApi.dispose(session.id)
@@ -943,6 +1130,7 @@ export function useTerminalSession({
 
           cleanup.push(
             terminalApi.onData(session.id, data => {
+              syncTuiViewport(data)
               armedWrite(data)
               scheduleSnapshot()
             }),
@@ -1095,7 +1283,7 @@ export function useTerminalSession({
       sessionIdRef.current = null
 
       if (id) {
-        void terminalApi.dispose(id)
+        void terminalApi.dispose(id, { keepRemote: appTearingDown })
       }
 
       term.dispose()

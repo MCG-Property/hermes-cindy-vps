@@ -16,6 +16,121 @@ from .method_ctx import HandlerRegistry, bind_module
 _registry = HandlerRegistry()
 
 
+def _archive_notice_identity(session: dict) -> tuple[str, str]:
+    """(source, user_id) key for the archive-restore-notice feature. Desktop/TUI sessions never
+    carry a per-user id (single-operator surface), matching the "" fallback the gateway messaging
+    path also uses for such channels -- see hermes_state_maintenance.py's archive sweep."""
+    return _session_source(session), ""
+
+
+def _archive_notice_check_prompt(session: dict, text: Any) -> None:
+    """If this identity has a notice awaiting a reply and *text* is a code/approve/deny, perform
+    the restore/keep/revert action now (as a DB side effect) and resolve the notice. Does not
+    short-circuit the turn -- the prompt still reaches the agent normally, same as the gateway
+    messaging path falling through on an unrecognized reply, except here EVERY reply (recognized
+    or not) still runs a turn, since bypassing the turn engine here is out of scope for this fix."""
+    import re
+    if not isinstance(text, str) or not text.strip():
+        return
+    source, user_id = _archive_notice_identity(session)
+    from hermes_state_registry import acquire, release_or_close
+    db = acquire()
+    try:
+        notice = db.peek_pending_archive_notice(source, user_id)
+        if notice is None or notice["status"] != "awaiting_reply":
+            return
+        raw = text.strip()
+        lowered = raw.lower()
+        entries = notice["entries"]
+        by_code = {e["code"].upper(): e for e in entries}
+        if lowered == "deny":
+            for e in entries:
+                db.set_session_archived(e["session_id"], False)
+            db.clear_archive_notice(source, user_id)
+            return
+        if lowered == "approve":
+            db.clear_archive_notice(source, user_id)
+            return
+        tokens = [t.strip().upper() for t in re.split(r"[,\s]+", raw) if t.strip()]
+        code_re = re.compile(r"^\d{1,3}[A-Za-z]$")
+        if tokens and all(code_re.match(t) for t in tokens):
+            matched = [by_code[t] for t in tokens if t in by_code]
+            if not matched:
+                return  # looked like codes but none matched this batch -- leave notice armed
+            for e in matched:
+                db.set_session_archived(e["session_id"], False)
+            db.clear_archive_notice(source, user_id)
+            return
+        # Anything else: a normal request. The reminder was already shown once, so this decision
+        # window is resolved regardless (matches the gateway messaging path's behavior).
+        db.clear_archive_notice(source, user_id)
+    except Exception:
+        logger.warning("archive-restore-notice check failed (non-fatal)", exc_info=True)
+    finally:
+        release_or_close(db)
+
+
+def _archive_notice_prepend(session: dict) -> str | None:
+    """If this identity has a 'pending' (not yet shown) archive-restore notice, marks it
+    'awaiting_reply' and returns the reminder block to prepend to the turn's response text.
+    Returns None (the common case) when nothing is pending."""
+    source, user_id = _archive_notice_identity(session)
+    from hermes_state_registry import acquire, release_or_close
+    db = acquire()
+    try:
+        notice = db.peek_pending_archive_notice(source, user_id)
+        if notice is None or notice["status"] != "pending":
+            return None
+        db.mark_archive_notice_shown(source, user_id)
+        lines = ["While you were away, I auto-archived some inactive sessions:", ""]
+        for e in notice["entries"]:
+            lines.append(f"`{e['code']}` — [{e['source']}] {e['title']}")
+        lines += [
+            "",
+            "To restore one session, reply with its code (e.g. `3C`). Reply 'deny' to restore "
+            "all sessions listed above. No reply is required; simply ignoring this notice keeps "
+            "them archived.",
+        ]
+        return "\n".join(lines)
+    except Exception:
+        logger.warning("archive-restore-notice prepend failed (non-fatal)", exc_info=True)
+        return None
+    finally:
+        release_or_close(db)
+
+
+def _archive_notice_patch_persisted_message(session: dict, notice_text: str) -> None:
+    """Prepend *notice_text* onto the already-persisted last assistant message for this session.
+
+    The agent writes its own messages straight to state.db during _invoke_agent, before control
+    even returns to this turn engine -- result["final_response"]/result["messages"] are only a
+    reflection of what already happened, so mutating them (tried first, before this) never changes
+    what's on disk or what the Desktop UI renders from. This patches the actual row instead."""
+    session_id = str(getattr(session.get("agent"), "session_id", "") or session.get("session_key") or "")
+    if not session_id:
+        return
+    from hermes_state_registry import acquire, release_or_close
+    db = acquire()
+    try:
+        row = db._read_one(
+            "SELECT id, content FROM messages WHERE session_id = ? AND role = 'assistant' "
+            "ORDER BY id DESC LIMIT 1", (session_id,),
+        )
+        if row is None:
+            return
+        msg_id, content = row[0], row[1]
+        if not isinstance(content, str) or not content.strip():
+            return
+        db._write_sql(
+            "UPDATE messages SET content = ? WHERE id = ?",
+            (f"{notice_text}\n\n{content}", msg_id),
+        )
+    except Exception:
+        logger.warning("archive-restore-notice DB patch failed (non-fatal)", exc_info=True)
+    finally:
+        release_or_close(db)
+
+
 def _bot_mode_delivery_text(response: Any, *, successful: bool) -> Any:
     """Return the text Bot Mode may render or relay after a completed turn.
 
@@ -935,6 +1050,9 @@ def _complete_turn_payload(session: dict, st: _TurnRun, status_note: str | None,
     raw, status, last_reasoning = _turn_outcome(result, _error_surface)
     if _is_bot_mode_session(session):
         raw = _bot_mode_delivery_text(raw, successful=status == "complete")
+    if isinstance(raw, str) and raw.strip() and (_archive_notice := _archive_notice_prepend(session)):
+        _archive_notice_patch_persisted_message(session, _archive_notice)
+        raw = f"{_archive_notice}\n\n{raw}"
     payload = {"text": raw, "usage": _get_usage(agent), "status": status}
     if receipt := _persisted_turn_receipt(st, raw, status):
         payload["persisted_turn"] = receipt
@@ -1160,6 +1278,7 @@ def _run_prompt_submit(
         st.marker_key = _record_turn_marker(session, text, auto_continue=terminal_callback is None,
             notification_category=(display_metadata or {}).get("notification_category"))
         goal_followup = None
+        _archive_notice_check_prompt(session, text)
         try:
             prepared = _prepare_turn_input(sid, session, st, text, images)
             if prepared is None:

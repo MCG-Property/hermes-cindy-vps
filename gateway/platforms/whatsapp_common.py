@@ -286,6 +286,17 @@ class WhatsAppBehaviorMixin(OwnAccessPolicyMixin):
         return result
 
 
+def whatsapp_session_dir() -> Path:
+    """Baileys auth dir shared by CLI pairing, dashboard onboarding, and the gateway adapter.
+
+    Canonical layout is ``platforms/whatsapp/session``; a populated legacy
+    ``whatsapp/session`` is honoured via :func:`hermes_constants.get_hermes_dir`
+    so existing pairings keep working without a silent path fork.
+    """
+    from hermes_constants import get_hermes_dir
+    return get_hermes_dir("platforms/whatsapp/session", "whatsapp/session")
+
+
 def resolve_whatsapp_bridge_dir() -> Path:
     """Bridge directory for CLI and adapter. A read-only install tree (e.g. Docker
     /opt/hermes) is mirrored to HERMES_HOME so npm install works."""

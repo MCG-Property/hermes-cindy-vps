@@ -120,7 +120,13 @@ def _normalize_todo_state(value: object) -> dict | None:
     # watermark and blocks unversioned tool.start merges. Empty at revision >= 1 is a real clear.
     if not todos and revision == 0:
         return None
-    return {"todos": todos, "revision": revision}
+    state = {"todos": todos, "revision": revision}
+    confirmed = value.get("user_confirmed")
+    if isinstance(confirmed, list):
+        state["user_confirmed"] = [str(item) for item in confirmed]
+    if "keep_open" in value:
+        state["keep_open"] = bool(value.get("keep_open"))
+    return state
 
 
 def _cache_todo_state(session: dict, state: dict | None) -> None:

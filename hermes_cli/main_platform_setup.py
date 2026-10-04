@@ -132,7 +132,7 @@ def _whatsapp_install_bridge(bridge_dir) -> bool:
 
 def cmd_whatsapp(args):
     """Set up WhatsApp: choose mode, configure, install bridge, pair via QR."""
-    from hermes_cli.main import _require_tty, get_hermes_home
+    from hermes_cli.main import _require_tty
     _require_tty("whatsapp")
     from hermes_cli.config import get_env_value, save_env_value
     from hermes_constants import find_node_executable, with_hermes_node_path
@@ -152,7 +152,7 @@ def cmd_whatsapp(args):
 
     _whatsapp_allowed_users(wa_mode, get_env_value, save_env_value)
 
-    from gateway.platforms.whatsapp_common import resolve_whatsapp_bridge_dir
+    from gateway.platforms.whatsapp_common import resolve_whatsapp_bridge_dir, whatsapp_session_dir
     bridge_dir = resolve_whatsapp_bridge_dir()
     bridge_script = bridge_dir / "bridge.js"
     if not bridge_script.exists():
@@ -161,13 +161,16 @@ def cmd_whatsapp(args):
     if not _whatsapp_install_bridge(bridge_dir):
         return
 
-    # Existing session: re-pair or keep.
-    session_dir = get_hermes_home() / "whatsapp" / "session"
+    # Same resolver as the gateway adapter + dashboard — never hardcode legacy whatsapp/session.
+    session_dir = whatsapp_session_dir()
     session_dir.mkdir(parents=True, exist_ok=True)
     if (session_dir / "creds.json").exists():
         print("✓ Existing WhatsApp session found")
         if _yes_no("\n  Re-pair? This will clear the existing session. [y/N] "):
             shutil.rmtree(session_dir, ignore_errors=True)
+            # Re-resolve so a cleared legacy dir does not keep absorbing new pairings;
+            # empty legacy falls through to platforms/whatsapp/session.
+            session_dir = whatsapp_session_dir()
             session_dir.mkdir(parents=True, exist_ok=True)
             print("  ✓ Session cleared")
         else:
