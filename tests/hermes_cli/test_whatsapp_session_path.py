@@ -54,6 +54,8 @@ def test_cmd_whatsapp_pairs_into_canonical_session_dir(isolated_home, monkeypatc
     captured = {}
 
     def fake_run(argv, **kwargs):
+        if "--session" not in argv:
+            return MagicMock(returncode=0, stdout="", stderr="")
         captured["argv"] = list(argv)
         # Simulate successful Baileys flush at the path the CLI asked for.
         session_idx = argv.index("--session")
@@ -141,6 +143,8 @@ def test_cmd_whatsapp_repair_from_legacy_writes_canonical(isolated_home, monkeyp
     captured = {}
 
     def fake_run(argv, **kwargs):
+        if "--session" not in argv:
+            return MagicMock(returncode=0, stdout="", stderr="")
         captured["argv"] = list(argv)
         session_idx = argv.index("--session")
         session_path = Path(argv[session_idx + 1])
