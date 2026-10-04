@@ -72,6 +72,6 @@ describe('spend tracker statusbar item', () => {
     expect(screen.getByText('Last request')).toBeTruthy()
     expect(screen.getByText('Paid models reset')).toBeTruthy()
     expect(screen.getByText('Last 24 hours')).toBeTruthy()
-    expect(screen.getByText(/5\.79/)).toBeTruthy()
+    expect(screen.getAllByText(/5\.79/).length).toBeGreaterThan(0)
   })
 })

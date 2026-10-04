@@ -144,7 +144,7 @@ describe('terminal store persistence', () => {
     const { $terminals, updateTerminalCursorChatId } = await loadTerminalStore()
 
     expect($terminals.get()[0]?.cursorChatId).toBe('chat-old')
-    expect($terminals.get()[0]?.restored).toBe(true)
+    expect($terminals.get()[0]?.resumeOnCreate).toBe(true)
 
     updateTerminalCursorChatId('term-one', 'chat-new')
     expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '{}').terminals[0].cursorChatId).toBe('chat-new')
