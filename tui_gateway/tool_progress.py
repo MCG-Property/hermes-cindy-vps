@@ -188,7 +188,7 @@ def _todo_state_from_history(history) -> dict | None:
     if not isinstance(history, list) or not history:
         return None
     try:
-        from tools.todo_tool import MAX_TODO_RESULT_CHARS, is_todo_tool_call
+        from tools.todo_tool import MAX_TODO_RESULT_CHARS, is_todo_tool_call, is_todo_tool_name
         todo_call_ids = {
             call.get("id")
             for msg in history if isinstance(msg, dict)
@@ -199,7 +199,7 @@ def _todo_state_from_history(history) -> dict | None:
             if not isinstance(msg, dict) or msg.get("role") != "tool":
                 continue
             # Messaging wrappers often store function.name="tool_call"; the real name is on the result.
-            named = str(msg.get("tool_name") or "") in _TODO_TOOL_NAMES
+            named = is_todo_tool_name(msg.get("tool_name"))
             paired = bool(todo_call_ids) and msg.get("tool_call_id") in todo_call_ids
             if not named and not paired:
                 continue
