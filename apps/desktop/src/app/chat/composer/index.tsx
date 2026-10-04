@@ -967,17 +967,13 @@ export function ChatBar({
       return
     }
 
-    // Cmd/Ctrl+Enter queues a follow-up while a turn runs. Plain Enter steers
-    // a text-only draft, so both live-turn actions stay reachable by keyboard.
-    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
+    // Cmd/Ctrl+Enter queues a follow-up while a turn runs, or saves an edit to a queued turn.
+    if (event.key === Enter && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
       event.preventDefault()
 
-      if (busy && !disabled) {
-        // As with plain Enter, source the just-typed content from the DOM so a
-        // fast keypress cannot queue a stale draft.
-        const editorText = liveComposerDraft(editorRef.current, draftRef.current)
-
-      const editorText = editorRef.current ? composerPlainText(editorRef.current) : draftRef.current
+      // As with plain Enter, source the just-typed content from the DOM so a
+      // fast keypress cannot queue a stale draft.
+      const editorText = liveComposerDraft(editorRef.current, draftRef.current)
 
       if (editorText !== draftRef.current) {
         draftRef.current = editorText
@@ -986,7 +982,7 @@ export function ChatBar({
 
       if (queueEdit) {
         submitDraft()
-      } else if (busy) {
+      } else if (busy && !disabled) {
         queueDraft()
       }
 
