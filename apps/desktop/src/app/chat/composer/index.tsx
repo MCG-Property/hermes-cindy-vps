@@ -968,7 +968,7 @@ export function ChatBar({
     }
 
     // Cmd/Ctrl+Enter queues a follow-up while a turn runs, or saves an edit to a queued turn.
-    if (event.key === Enter && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
       event.preventDefault()
 
       // As with plain Enter, source the just-typed content from the DOM so a

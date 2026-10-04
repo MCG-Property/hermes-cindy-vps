@@ -243,12 +243,6 @@ export function registerTerminalIpc({
     })
   }
 
-  function sshBinary() {
-    return process.platform === 'win32'
-      ? path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'OpenSSH', 'ssh.exe')
-      : 'ssh'
-  }
-
   function killPersistedRemoteSession(sessionInfo) {
     const persistKey = String(sessionInfo?.persistKey || '').trim()
 
@@ -375,10 +369,6 @@ export function registerTerminalIpc({
 
     const remote = Boolean(sshTarget)
     const remoteState = remote ? getSshConnectionState(sshTarget.scope) : null
-
-    const persistKey = String(payload?.persistKey || '').trim()
-    const cursorChatId = String(payload?.cursorChatId || '').trim()
-    const resumeOnCreate = Boolean(payload?.resumeOnCreate)
 
     const remoteCommand =
       remoteState?.remotePlatform === 'Windows'
@@ -537,7 +527,7 @@ export function registerTerminalIpc({
       }
     }
 
-    const sshTarget = activeSshTerminalTarget(event.sender.id)
+    const sshTarget = activeSshTerminalTarget(event.sender.id) as { ssh?: any } | null
 
     if (!sshTarget?.ssh) {
       return false

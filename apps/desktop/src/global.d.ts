@@ -468,8 +468,6 @@ declare global {
       desktopChromeRoot?: () => Promise<string>
       desktopChromeSnapshot?: () => Promise<{ ok: boolean; saved: string[] }>
       desktopChromeRollback?: () => Promise<{ ok: boolean; restored: string[] }>
-      /** LOCAL `<HERMES_HOME>/logs` (profile-aware) — error card "Open Logs". */
-      logsRoot?: () => Promise<string>
       /** Refresh unified packages' desktop halves and return the touched paths. */
       reconcileDesktopPlugins?: () => Promise<string[]>
       /** LOCAL `<HERMES_HOME>/logs` of `profile` (default: the active Desktop

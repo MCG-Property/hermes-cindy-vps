@@ -1,7 +1,7 @@
 import type { ReactElement, ReactNode } from 'react'
 import { Children, cloneElement, isValidElement } from 'react'
 
-import { modelSearchText } from '@/lib/model-search-text'
+import { modelSearchText } from '@hermes/shared/model-search-text'
 import { foldIncludes } from '@/lib/text'
 
 type SelectNodeProps = {
@@ -16,7 +16,7 @@ function asElement(node: ReactNode): ReactElement<SelectNodeProps> | null {
 }
 
 /** `<SelectItem>` always carries a string `value`. Groups and labels do not. */
-export function isSelectItemElement(node: ReactNode): node is ReactElement<SelectNodeProps> {
+export function isSelectItemElement(node: ReactNode): boolean {
   const element = asElement(node)
 
   return Boolean(element && typeof element.props.value === 'string')

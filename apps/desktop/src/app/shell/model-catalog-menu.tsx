@@ -37,7 +37,7 @@ import { triggerHaptic } from '@/lib/haptics'
 import { isSubmitEnter } from '@/lib/ime'
 import { catalogProviderMatches, modelOptionsQueryKey, requestModelOptions } from '@/lib/model-options'
 import { displayModelName, modelDisplayParts } from '@/lib/model-status-label'
-import { DEFAULT_REASONING_EFFORT, reasoningEffortLabel } from '@/lib/reasoning-effort'
+import { reasoningEffortLabel } from '@/lib/reasoning-effort'
 import { usePickerFilterCapture } from '@/lib/picker-typeahead'
 import { foldIncludes, normalize } from '@/lib/text'
 import { cn } from '@/lib/utils'
@@ -675,7 +675,6 @@ export function ModelCatalogMenu({
     <>
       <DropdownMenuSearch
         aria-label={copy.search}
-        ref={searchRef}
         onKeyDown={event => {
           // Claim arrows and Enter from Radix so DOM focus stays in the input
           // and Enter commits the highlighted row without a DownArrow first.

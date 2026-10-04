@@ -49,7 +49,11 @@ export async function reloadDesktopChrome(): Promise<{ applied: boolean; css: st
 
   try {
     const overlay = `${root.replace(/[/\\]+$/, '')}/overlay.css`
-    css = (await desktop.readFileText(overlay)).text
+    const overlayResult = await desktop.readFileText(overlay)
+
+    if ('text' in overlayResult) {
+      css = overlayResult.text
+    }
   } catch {
     clearOverlayCss()
     await desktop.desktopChromeSnapshot?.()
@@ -116,7 +120,11 @@ export function watchDesktopChrome(): void {
     }
 
     try {
-      watchIds.add((await desktop.watchPreviewFile(`${root.replace(/[/\\]+$/, '')}/overlay.css`)).id)
+      const watch = await desktop.watchPreviewFile(`${root.replace(/[/\\]+$/, '')}/overlay.css`)
+
+      if ('id' in watch) {
+        watchIds.add(watch.id)
+      }
     } catch {
       // overlay.css is optional until the agent writes it.
     }

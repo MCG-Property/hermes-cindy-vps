@@ -36,7 +36,7 @@ describe('announceTerminalBell', () => {
   it('plays once, then notifies silently when the chime ran', async () => {
     resetTerminalBellClock()
     const playChime = vi.fn(async () => true)
-    const notify = vi.fn(async () => true)
+    const notify = vi.fn(async (_payload: unknown) => true)
 
     await expect(announceTerminalBell(5_000, { notify, playChime })).resolves.toBe(true)
     await expect(announceTerminalBell(5_100, { notify, playChime })).resolves.toBe(false)
