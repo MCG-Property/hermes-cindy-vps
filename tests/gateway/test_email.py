@@ -816,9 +816,9 @@ class TestPollLoop(unittest.TestCase):
             asyncio.run(adapter._check_inbox())
 
         self.assertEqual([message["message_id"] for message in dispatched], ["<trusted@example.com>"])
-        self.assertNotIn((b"9", "(RFC822)"), fetch_specs)
-        self.assertNotIn((b"11", "(RFC822)"), fetch_specs)
-        self.assertIn((b"10", "(RFC822)"), fetch_specs)
+        self.assertNotIn((b"9", "(BODY.PEEK[])"), fetch_specs)
+        self.assertNotIn((b"11", "(BODY.PEEK[])"), fetch_specs)
+        self.assertIn((b"10", "(BODY.PEEK[])"), fetch_specs)
         header_specs = [spec for _, spec in fetch_specs if "BODY.PEEK[HEADER.FIELDS" in spec]
         self.assertEqual(len(header_specs), 3)
         self.assertTrue(all(f"<0.{_MAX_PREAUTH_HEADER_BYTES + 1}>" in spec for spec in header_specs))
@@ -1460,6 +1460,21 @@ def test_oversized_cron_output_is_delivered_as_one_whole_email():
 
     assert result.success
     assert sent == [content]
+
+
+# Upstream fixtures send to fabricated addresses; the standing self-only send rule (recipient_allowed) only lets
+# those through when Cam approved them, so approve exactly the fixture recipients for the module.
+_FIXTURE_RECIPIENTS = {"user@test.com"}
+_exceptions_patch = patch(
+    "plugins.platforms.email.adapter._approved_send_exceptions", return_value=_FIXTURE_RECIPIENTS)
+
+
+def setUpModule():
+    _exceptions_patch.start()
+
+
+def tearDownModule():
+    _exceptions_patch.stop()
 
 
 class TestSelfOnlySendPolicy(unittest.TestCase):
