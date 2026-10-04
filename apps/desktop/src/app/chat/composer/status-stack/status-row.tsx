@@ -118,10 +118,13 @@ export const StatusItemRow = memo(function StatusItemRow({
   const saveTodo = () => {
     const content = draft.trim()
     setEditing(false)
+
     if (!sessionId || !todoKey || !content || content === item.title) {
       setDraft(item.title)
+
       return
     }
+
     void $gateway.get()?.request('todo.update', { session_id: sessionId, id: todoKey, content })
   }
 
@@ -129,6 +132,7 @@ export const StatusItemRow = memo(function StatusItemRow({
     if (!sessionId || !todoKey) {
       return
     }
+
     void $gateway.get()?.request('todo.delete', { session_id: sessionId, id: todoKey })
   }
 
@@ -209,7 +213,8 @@ export const StatusItemRow = memo(function StatusItemRow({
             onChange={event => setDraft(event.target.value)}
             onClick={event => event.stopPropagation()}
             onKeyDown={event => {
-              if (event.key === 'Enter') saveTodo()
+              if (event.key === 'Enter') {saveTodo()}
+
               if (event.key === 'Escape') {
                 setDraft(item.title)
                 setEditing(false)

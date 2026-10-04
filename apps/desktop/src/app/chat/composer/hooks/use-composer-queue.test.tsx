@@ -222,7 +222,7 @@ describe('useComposerQueue park integration', () => {
       expect(await hook.result.current.steerQueuedNow(entry!.id)).toBe(true)
     })
 
-    expect(onSteer).toHaveBeenCalledWith('steer me')
+    expect(onSteer).toHaveBeenCalledWith('steer me', { interrupt: true })
     // A redirect rides the live turn: no interrupt, no submit.
     expect(onCancel).not.toHaveBeenCalled()
     expect(onSubmit).not.toHaveBeenCalled()
@@ -321,7 +321,7 @@ describe('useComposerQueue park integration', () => {
         expect(await hook.result.current.deliverQueuedNow(entry.id)).toBe(true)
       })
 
-      expect(onSteer).toHaveBeenCalledWith('fix the header too')
+      expect(onSteer).toHaveBeenCalledWith('fix the header too', { interrupt: true })
       expect(onCancel).not.toHaveBeenCalled()
       expect(onSubmit).not.toHaveBeenCalled()
       expect(getQueuedPrompts(SESSION_KEY)).toHaveLength(0)

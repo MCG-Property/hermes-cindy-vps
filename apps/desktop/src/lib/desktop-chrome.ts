@@ -100,7 +100,6 @@ export function watchDesktopChrome(): void {
   if (!desktop?.desktopChromeRoot) {
     return
   }
-
   void (async () => {
     await reloadDesktopChrome()
     const root = await desktop.desktopChromeRoot?.()

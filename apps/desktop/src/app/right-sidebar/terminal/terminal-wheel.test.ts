@@ -128,6 +128,7 @@ describe('planTuiWheelWrite', () => {
     const writes: string[] = []
     let latched = false
     let carry = 0
+
     const wheel = createTuiWheelDispatcher({
       getBufferType: () => 'normal',
       getHost: () => host,
@@ -148,6 +149,7 @@ describe('planTuiWheelWrite', () => {
     })
 
     window.addEventListener('wheel', wheel.onWindowWheel, { capture: true, passive: false })
+
     const event = new WheelEvent('wheel', {
       bubbles: true,
       cancelable: true,
@@ -156,6 +158,7 @@ describe('planTuiWheelWrite', () => {
       deltaMode: 0,
       deltaY: -TERMINAL_WHEEL_PIXEL_PAGE
     })
+
     Object.defineProperty(event, 'target', { value: host })
     window.dispatchEvent(event)
     window.removeEventListener('wheel', wheel.onWindowWheel, true)

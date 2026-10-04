@@ -14,13 +14,13 @@ import { resolveTerminalConnectionForSender } from './connection-apply'
 import { ensureSpawnHelperExecutable } from './spawn-helper-perms'
 import { buildExecArgs, buildInteractiveSshArgs } from './ssh-connection'
 import { createTerminalOutputGate } from './terminal-output-gate'
-import { applyWindowsMsysBashEnvDefaults } from './windows-msys-bash-env'
 import {
   buildKillPersistedSessionCommand,
   buildTmuxCancelCopyModeCommand,
   buildTmuxHistoryScrollCommand,
   parseInkPageKeyWrite
 } from './terminal-persist'
+import { applyWindowsMsysBashEnvDefaults } from './windows-msys-bash-env'
 import { buildWindowsInteractiveCommand } from './windows-remote-lifecycle'
 
 export interface TerminalIpcDeps {
