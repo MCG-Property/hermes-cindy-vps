@@ -97,7 +97,7 @@ it('keeps the task list open until every task is complete', () => {
   $todosBySession.set({ owner: [{ id: 'todo', content: 'Finished todo', status: 'completed' }] })
   const view = render(stack())
 
-  const header = screen.getByRole('button', { name: /1 task/i })
+  const header = screen.getByRole('button', { name: /Tasks 1\/1/ })
   expect(header.getAttribute('aria-expanded')).toBe('false')
   expect(screen.queryByText('Finished todo')).toBeNull()
 

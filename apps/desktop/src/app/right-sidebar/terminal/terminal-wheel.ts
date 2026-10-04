@@ -173,6 +173,7 @@ export function createTuiWheelDispatcher(options: TuiWheelDispatcherOptions) {
     }
 
     const host = options.getHost()
+
     const overHost =
       isPointInTerminalWheelRect(event.clientX, event.clientY, host.getBoundingClientRect()) ||
       isTerminalWheelEventTarget(event.target)
@@ -182,6 +183,7 @@ export function createTuiWheelDispatcher(options: TuiWheelDispatcherOptions) {
     }
 
     const target = event.target
+
     const plan = planTuiWheelWrite({
       blocked: target instanceof Element && Boolean(target.closest('button, [role="dialog"], [data-no-tui-wheel]')),
       bufferType: options.getBufferType(),
@@ -194,6 +196,7 @@ export function createTuiWheelDispatcher(options: TuiWheelDispatcherOptions) {
       sticky: options.isSticky?.() ?? false,
       title: options.getTitle()
     })
+
     options.setLatched(plan.nextLatched)
     options.setPixelCarry(plan.nextCarry)
 

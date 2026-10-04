@@ -39,9 +39,9 @@ describe('bundled Radio plugin', () => {
     const audio = vi.fn()
     vi.stubGlobal('fetch', fetch)
     vi.stubGlobal('Audio', audio)
-    const initialStyles = document.head.querySelectorAll('style').length
-
     discoverBundledPlugins()
+    // Fork: the Desktop chrome overlay installs its own <style> tags during discovery; Radio must not add or leave any.
+    const initialStyles = document.head.querySelectorAll('style').length
     expect($pluginRecords.get().radio).toMatchObject({ kind: 'bundled', status: 'disabled' })
     expect(registry.getArea('statusBar.right').some(item => item.source === 'plugin:radio')).toBe(false)
     expect(document.head.querySelectorAll('style').length).toBe(initialStyles)

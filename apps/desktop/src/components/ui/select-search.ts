@@ -1,7 +1,7 @@
+import { modelSearchText } from '@hermes/shared/model-search-text'
 import type { ReactElement, ReactNode } from 'react'
 import { Children, cloneElement, isValidElement } from 'react'
 
-import { modelSearchText } from '@hermes/shared/model-search-text'
 import { foldIncludes } from '@/lib/text'
 
 type SelectNodeProps = {

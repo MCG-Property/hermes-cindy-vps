@@ -348,7 +348,8 @@ describe('useComposerSubmit busy-turn routing', () => {
     clearComposerTerminalSelections()
   })
 
-  it('treats a payload mid-turn as send (steer), not stop', async () => {
+  // Fork: a plain send while busy queues instead of steering; steer is the queue-panel control only.
+  it.skip('treats a payload mid-turn as send (steer), not stop', async () => {
     const { hook, onCancel, onSteer, onSubmit, queueCurrentDraft } = renderSubmitHook({
       busy: true,
       text: 'change course'
@@ -364,7 +365,8 @@ describe('useComposerSubmit busy-turn routing', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
-  it('puts a refused steer back in the composer when there is no queue to hold it', async () => {
+  // Fork: a plain send while busy queues instead of steering; steer is the queue-panel control only.
+  it.skip('puts a refused steer back in the composer when there is no queue to hold it', async () => {
     // A brand-new chat is busy while its first session.create is in flight but
     // has no queue key yet. The steer clears the draft first, so a refusal must
     // restore the words rather than drop the only copy (#68927).
@@ -378,7 +380,8 @@ describe('useComposerSubmit busy-turn routing', () => {
     await waitFor(() => expect(loadIntoComposer).toHaveBeenCalledWith('keep me', []))
   })
 
-  it('queues a steer whose redirect RPC fails instead of losing it', async () => {
+  // Fork: a plain send while busy queues instead of steering; steer is the queue-panel control only.
+  it.skip('queues a steer whose redirect RPC fails instead of losing it', async () => {
     const { hook, onSteer } = renderSubmitHook({ busy: true, text: 'still here' })
     onSteer.mockRejectedValueOnce(new Error('request timed out: session.redirect'))
 
@@ -492,7 +495,8 @@ describe('useComposerSubmit busy-turn routing', () => {
     expect(queueCurrentDraft).not.toHaveBeenCalled()
   })
 
-  it('expands @terminal selection chips before steering a busy turn', async () => {
+  // Fork: a plain send while busy queues instead of steering; steer is the queue-panel control only.
+  it.skip('expands @terminal selection chips before steering a busy turn', async () => {
     setComposerTerminalSelection('zsh:23-58', 'selected terminal lines')
 
     const { hook, onSteer, queueCurrentDraft } = renderSubmitHook({
@@ -508,7 +512,8 @@ describe('useComposerSubmit busy-turn routing', () => {
     expect(queueCurrentDraft).not.toHaveBeenCalled()
   })
 
-  it('refuses to steer when a restored @terminal chip has no selection payload', () => {
+  // Fork: a plain send while busy queues instead of steering; steer is the queue-panel control only.
+  it.skip('refuses to steer when a restored @terminal chip has no selection payload', () => {
     clearComposerTerminalSelections()
 
     const { hook, onSteer, queueCurrentDraft } = renderSubmitHook({
@@ -601,7 +606,8 @@ describe('useComposerSubmit with a clarify parked on the session', () => {
     expect(hasOpenServerRequest('req-runtime-session')).toBe(false)
   })
 
-  it('skips the question before steering a busy turn', async () => {
+  // Fork: a plain send while busy queues instead of steering; steer is the queue-panel control only.
+  it.skip('skips the question before steering a busy turn', async () => {
     parkClarify('runtime-session')
     const { hook, onSteer } = renderSubmitHook({ busy: true, text: 'change course' })
 
@@ -702,7 +708,8 @@ describe('useComposerSubmit with a connection card parked on the session', () =>
     expect($connectionRequests.get()['runtime-session']?.settled).toBe(false)
   })
 
-  it('still continues the connection request for an ordinary reply', async () => {
+  // Fork: a plain send while busy queues instead of steering; steer is the queue-panel control only.
+  it.skip('still continues the connection request for an ordinary reply', async () => {
     parkConnection()
     vi.spyOn(sessionOwnerUtils, 'resolveSessionOwner').mockRejectedValue(new Error('test no owner'))
     const gatewayRequest = vi.fn(async () => ({}))
@@ -794,7 +801,8 @@ describe('useComposerSubmit with a blocking prompt parked on the session', () =>
     expect(onSteer).not.toHaveBeenCalled()
   })
 
-  it("ignores another session's blocking prompt and still steers", async () => {
+  // Fork: a plain send while busy queues instead of steering; steer is the queue-panel control only.
+  it.skip("ignores another session's blocking prompt and still steers", async () => {
     setApprovalRequest({ command: 'ls', description: 'other', sessionId: 'other-session' })
 
     const { hook, onSteer, queueCurrentDraft } = renderSubmitHook({ busy: true, text: 'change course' })

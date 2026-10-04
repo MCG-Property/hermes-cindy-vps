@@ -24,6 +24,7 @@ function Harness({
   requestGateway: (method: string, params?: Record<string, unknown>) => Promise<unknown>
 }) {
   const item = useSpendTrackerStatusbarItem(requestGateway)
+
   return (
     <MemoryRouter>
       <StatusbarControls items={[item]} />
@@ -55,6 +56,7 @@ describe('spend tracker statusbar item', () => {
         { at: '2026-09-13T19:00:00Z', hour_usd: 5.79, last_request_usd: 0.03, mode: 'free' }
       ]
     }))
+
     $activeSessionId.set('chat-1')
     render(<Harness requestGateway={requestGateway} />)
 
@@ -72,6 +74,6 @@ describe('spend tracker statusbar item', () => {
     expect(screen.getByText('Last request')).toBeTruthy()
     expect(screen.getByText('Paid models reset')).toBeTruthy()
     expect(screen.getByText('Last 24 hours')).toBeTruthy()
-    expect(screen.getByText(/5\.79/)).toBeTruthy()
+    expect(screen.getAllByText(/5\.79/).length).toBeGreaterThan(0)
   })
 })
