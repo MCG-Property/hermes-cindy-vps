@@ -18,7 +18,7 @@ from gateway.platforms._shared import (
     apply_yaml_bridge as _apply_yaml_bridge, extra_or_secret as _extra_or_secret, get_scoped_secret, send_error
 )
 from hermes_cli._subprocess_compat import windows_detach_popen_kwargs
-from hermes_constants import (find_node_executable, with_hermes_node_path)
+from hermes_constants import (find_node_executable, get_hermes_dir, with_hermes_node_path)
 
 _IS_WINDOWS = platform.system() == "Windows"
 

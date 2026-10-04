@@ -338,7 +338,9 @@ def _apply_capabilities(rows: list[dict], *, metadata_config: dict | None = None
 
         for model in models:
             if cheap and model not in priority:
-                caps[model] = {"fast": bool(model_supports_fast_mode(model)), "reasoning": True}
+                fast = resolve_fast_mode_overrides(
+                    model, provider=slug, base_url=row.get("api_url")) is not None
+                caps[model] = {"fast": fast, "reasoning": True}
                 continue
             reasoning = True
             if get_model_capabilities is not None and slug:
