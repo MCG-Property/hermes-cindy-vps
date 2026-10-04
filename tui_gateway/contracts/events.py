@@ -319,6 +319,10 @@ class TodoUpdatedPayload(Payload):
 
     todos: list[JsonValue]
     revision: int
+    # Fork extension (user-owned task list): present on updates published by todo.* RPCs.
+    user_confirmed: list[str] | None = None
+    keep_open: bool | None = None
+    outstanding_labels: list[str] | None = None
 
 
 event("todo.updated", TodoUpdatedPayload, doc="Full todo snapshot after a todo tool ran.")

@@ -1835,6 +1835,66 @@ export interface ClientCapabilitiesResult {
   server_requests: string[]
   declines_not_shown?: boolean
 }
+/** ``methods_todo._todo_payload``: the full task snapshot after a task-list call. */
+export interface TodoStateResult {
+  todos: unknown[]
+  revision: number
+  user_confirmed: string[]
+  keep_open: boolean
+  outstanding_labels: string[]
+}
+export interface TodoAddParams {
+  session_id: string
+  profile?: string | null
+  content?: string | null
+  contents?: string[] | null
+  parent?: string | null
+  group?: string | null
+  new_group?: boolean | null
+}
+export interface TodoUpdateParams {
+  session_id: string
+  profile?: string | null
+  id: string
+  content?: string | null
+  status?: string | null
+  work_status?: string | null
+  blocked_reason?: string | null
+}
+export interface TodoIdParams {
+  session_id: string
+  profile?: string | null
+  id: string
+}
+export interface TodoConfirmParams {
+  session_id: string
+  profile?: string | null
+  id?: string | null
+  ids?: string[] | null
+}
+/** Client→server method params / server→client request params. Unknown keys are rejected. */
+export type Params = Record<string, never>
+export interface DesktopPluginListResult {
+  plugins: DesktopPluginEntry[]
+}
+export interface DesktopPluginEntry {
+  id: string
+  sha256: string
+}
+export interface DesktopPluginSourceParams {
+  id: string
+}
+export interface DesktopPluginSourceResult {
+  id: string
+  name: string
+  sha256: string
+  content: string
+}
+export interface SpendSnapshotParams {
+  session_id?: string | null
+}
+/** ``scripts/spend_tracker.snapshot_with_history``: open shape owned by that script (status-bar plugin reads it). */
+export type SpendSnapshotResult = Record<string, unknown>
 /** ``word`` is the token under the cursor (``@`` prefix = context reference); ``cwd`` / ``session_id`` pick the directory the listing resolves against. */
 export interface CompletePathParams {
   profile?: string | null
@@ -2097,8 +2157,6 @@ export interface ProfilesRememberOnboardingResult {
   profile?: string
   target?: string
 }
-/** Client→server method params / server→client request params. Unknown keys are rejected. */
-export type Params = Record<string, never>
 /** ``created`` is false when an existing setup profile was found (and returned untouched). */
 export interface OnboardingEnsureSetupProfileResult {
   name: string
@@ -3444,6 +3502,12 @@ export interface SessionCorrectionResult {
   text: string
 }
 export type CorrectionStatus = 'queued' | 'redirected' | 'rejected'
+export interface SessionRedirectParams {
+  session_id: string
+  profile?: string | null
+  text: string
+  interrupt?: boolean
+}
 export interface SpawnTreeSaveParams {
   profile?: string | null
   subagents: Record<string, unknown>[]
@@ -4663,6 +4727,9 @@ export interface ToolOutputRiskPayload {
 export interface TodoUpdatedPayload {
   todos: unknown[]
   revision: number
+  user_confirmed?: string[] | null
+  keep_open?: boolean | null
+  outstanding_labels?: string[] | null
 }
 /** ``agent/credits_tracker.py::AgentNotice`` via notice_callback, and ``server._await_agent_ready``'s slow-build notice. ``level``: info | warn | error | success; ``kind``: sticky | ttl | agent. */
 export interface NotificationShowPayload {
@@ -4968,6 +5035,10 @@ export interface RpcMethods {
   'delegation.pause': { params: DelegationPauseParams; result: DelegationPauseResult }
   /** Running subagent tree plus the spawn pause flag and limits. */
   'delegation.status': { params: ProfileParams; result: DelegationStatusResult }
+  /** List live Desktop plugins served from $HERMES_HOME/desktop-plugins. */
+  'desktop.plugin.list': { params: Params; result: DesktopPluginListResult }
+  /** Source text and hash of one live Desktop plugin. */
+  'desktop.plugin.source': { params: DesktopPluginSourceParams; result: DesktopPluginSourceResult }
   /** Upload a force-redacted debug bundle to Nous-internal diagnostics storage. */
   'diagnostics.share_nous': { params: DiagnosticsShareNousParams; result: DiagnosticsShareNousResult }
   /** Run the distro package install on the gateway host; progress streams as display.install.log/.done. */
@@ -5259,7 +5330,7 @@ export interface RpcMethods {
   /** Most recent human-facing session; errors fold into a null session_id. */
   'session.most_recent': { params: SessionMostRecentParams; result: SessionMostRecentResult }
   /** Redirect the active turn (queued for the next turn while the agent is still building). */
-  'session.redirect': { params: SessionCorrectionParams; result: SessionCorrectionResult }
+  'session.redirect': { params: SessionRedirectParams; result: SessionCorrectionResult }
   /** Attach to a stored session: reuse it if live here, else lazy / deferred / cold / eager rebuild. */
   'session.resume': { params: SessionResumeParams; result: SessionResumeResult }
   /** Export the transcript to ~/.hermes/sessions/saved (classic /save). */
@@ -5316,6 +5387,8 @@ export interface RpcMethods {
   'spawn_tree.load': { params: SpawnTreeLoadParams; result: SpawnTreeLoadResult }
   /** Persist a finished delegation tree snapshot under the session's spawn-trees dir. */
   'spawn_tree.save': { params: SpawnTreeSaveParams; result: SpawnTreeSaveResult }
+  /** Rolling spend snapshot plus history for the Desktop status-bar plugin. */
+  'spend.snapshot': { params: SpendSnapshotParams; result: SpendSnapshotResult }
   /** Hard-interrupt one owned child; ``found`` is false when it already finished. */
   'subagent.interrupt': { params: SubagentIdParams; result: SubagentInterruptResult }
   /** Live children owned by this session (other sessions' children never leak). */
@@ -5338,6 +5411,20 @@ export interface RpcMethods {
   'system.battery': { params: SystemBatteryParams; result: SystemBatteryResult }
   /** Record the client's column width for server-side rendering. */
   'terminal.resize': { params: TerminalResizeParams; result: TerminalResizeResult }
+  /** Add a user-authored task; never marks anything complete. */
+  'todo.add': { params: TodoAddParams; result: TodoStateResult }
+  /** Add one submit-batch of tasks under a new letter group and keep the list open. */
+  'todo.add_batch': { params: TodoAddParams; result: TodoStateResult }
+  /** The user dismissed a task with x: remove it and keep the list consistent. */
+  'todo.cancel': { params: TodoIdParams; result: TodoStateResult }
+  /** The user said this task (or these tasks) is done. */
+  'todo.confirm': { params: TodoConfirmParams; result: TodoStateResult }
+  /** Remove a task the user dismissed. */
+  'todo.delete': { params: TodoIdParams; result: TodoStateResult }
+  /** Current task list for a live session. */
+  'todo.get': { params: SessionParams; result: TodoStateResult }
+  /** Edit task text/status; status changes other than user confirm stay pending/in_progress. */
+  'todo.update': { params: TodoUpdateParams; result: TodoStateResult }
   /** Persist a toolset / MCP enable-disable change and rebuild the session agent so it takes effect now. */
   'tools.configure': { params: ToolsConfigureParams; result: ToolsConfigureResult }
   /** Every toolset with its resolved tool names, flagged against the session's (or config's) enabled set. */
@@ -5429,6 +5516,8 @@ export const RPC_METHODS = [
   'cron.manage',
   'delegation.pause',
   'delegation.status',
+  'desktop.plugin.list',
+  'desktop.plugin.source',
   'diagnostics.share_nous',
   'display.install',
   'display.lease.acquire',
@@ -5603,6 +5692,7 @@ export const RPC_METHODS = [
   'spawn_tree.list',
   'spawn_tree.load',
   'spawn_tree.save',
+  'spend.snapshot',
   'subagent.interrupt',
   'subagent.list',
   'subagent.steer',
@@ -5614,6 +5704,13 @@ export const RPC_METHODS = [
   'subscription.upgrade',
   'system.battery',
   'terminal.resize',
+  'todo.add',
+  'todo.add_batch',
+  'todo.cancel',
+  'todo.confirm',
+  'todo.delete',
+  'todo.get',
+  'todo.update',
   'tools.configure',
   'tools.list',
   'tools.show',

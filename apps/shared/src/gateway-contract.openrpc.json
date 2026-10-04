@@ -799,6 +799,42 @@
       }
     },
     {
+      "name": "desktop.plugin.list",
+      "summary": "List live Desktop plugins served from $HERMES_HOME/desktop-plugins.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/Params"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/DesktopPluginListResult"
+        }
+      }
+    },
+    {
+      "name": "desktop.plugin.source",
+      "summary": "Source text and hash of one live Desktop plugin.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/DesktopPluginSourceParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/DesktopPluginSourceResult"
+        }
+      }
+    },
+    {
       "name": "diagnostics.share_nous",
       "summary": "Upload a force-redacted debug bundle to Nous-internal diagnostics storage.",
       "params": [
@@ -3415,7 +3451,7 @@
         {
           "name": "params",
           "schema": {
-            "$ref": "#/components/schemas/SessionCorrectionParams"
+            "$ref": "#/components/schemas/SessionRedirectParams"
           }
         }
       ],
@@ -3931,6 +3967,24 @@
       }
     },
     {
+      "name": "spend.snapshot",
+      "summary": "Rolling spend snapshot plus history for the Desktop status-bar plugin.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/SpendSnapshotParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/SpendSnapshotResult"
+        }
+      }
+    },
+    {
       "name": "subagent.interrupt",
       "summary": "Hard-interrupt one owned child; ``found`` is false when it already finished.",
       "params": [
@@ -4125,6 +4179,132 @@
         "name": "result",
         "schema": {
           "$ref": "#/components/schemas/TerminalResizeResult"
+        }
+      }
+    },
+    {
+      "name": "todo.add",
+      "summary": "Add a user-authored task; never marks anything complete.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/TodoAddParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/TodoStateResult"
+        }
+      }
+    },
+    {
+      "name": "todo.add_batch",
+      "summary": "Add one submit-batch of tasks under a new letter group and keep the list open.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/TodoAddParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/TodoStateResult"
+        }
+      }
+    },
+    {
+      "name": "todo.cancel",
+      "summary": "The user dismissed a task with x: remove it and keep the list consistent.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/TodoIdParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/TodoStateResult"
+        }
+      }
+    },
+    {
+      "name": "todo.confirm",
+      "summary": "The user said this task (or these tasks) is done.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/TodoConfirmParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/TodoStateResult"
+        }
+      }
+    },
+    {
+      "name": "todo.delete",
+      "summary": "Remove a task the user dismissed.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/TodoIdParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/TodoStateResult"
+        }
+      }
+    },
+    {
+      "name": "todo.get",
+      "summary": "Current task list for a live session.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/SessionParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/TodoStateResult"
+        }
+      }
+    },
+    {
+      "name": "todo.update",
+      "summary": "Edit task text/status; status changes other than user confirm stay pending/in_progress.",
+      "params": [
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "#/components/schemas/TodoUpdateParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "#/components/schemas/TodoStateResult"
         }
       }
     },
@@ -12201,6 +12381,85 @@
           "max_concurrent_children"
         ],
         "title": "DelegationStatusResult",
+        "type": "object"
+      },
+      "DesktopPluginEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sha256"
+        ],
+        "title": "DesktopPluginEntry",
+        "type": "object"
+      },
+      "DesktopPluginListResult": {
+        "additionalProperties": false,
+        "properties": {
+          "plugins": {
+            "items": {
+              "$ref": "#/components/schemas/DesktopPluginEntry"
+            },
+            "title": "Plugins",
+            "type": "array"
+          }
+        },
+        "required": [
+          "plugins"
+        ],
+        "title": "DesktopPluginListResult",
+        "type": "object"
+      },
+      "DesktopPluginSourceParams": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "DesktopPluginSourceParams",
+        "type": "object"
+      },
+      "DesktopPluginSourceResult": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "sha256",
+          "content"
+        ],
+        "title": "DesktopPluginSourceResult",
         "type": "object"
       },
       "DiagnosticsShareNousParams": {
@@ -31145,6 +31404,42 @@
         "title": "SessionReclaimedPayload",
         "type": "object"
       },
+      "SessionRedirectParams": {
+        "additionalProperties": false,
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Profile"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "interrupt": {
+            "default": false,
+            "title": "Interrupt",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "session_id",
+          "text"
+        ],
+        "title": "SessionRedirectParams",
+        "type": "object"
+      },
       "SessionResumeParams": {
         "additionalProperties": false,
         "description": "``session_id`` is the STORED id (or an exact title); the reply's ``session_id`` is the runtime id.",
@@ -34116,6 +34411,32 @@
         "title": "SpawnTreeSaveResult",
         "type": "object"
       },
+      "SpendSnapshotParams": {
+        "additionalProperties": false,
+        "properties": {
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Id"
+          }
+        },
+        "title": "SpendSnapshotParams",
+        "type": "object"
+      },
+      "SpendSnapshotResult": {
+        "additionalProperties": true,
+        "description": "``scripts/spend_tracker.snapshot_with_history``: open shape owned by that script (status-bar plugin reads it).",
+        "properties": {},
+        "title": "SpendSnapshotResult",
+        "type": "object"
+      },
       "StatusUpdatePayload": {
         "additionalProperties": false,
         "description": "``server._status_update`` and the direct emitters (goal / loop / heartbeat / process).",
@@ -35761,6 +36082,179 @@
         "title": "TipShowPayload",
         "type": "object"
       },
+      "TodoAddParams": {
+        "additionalProperties": false,
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Profile"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Content"
+          },
+          "contents": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Contents"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Parent"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Group"
+          },
+          "new_group": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "New Group"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "TodoAddParams",
+        "type": "object"
+      },
+      "TodoConfirmParams": {
+        "additionalProperties": false,
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Profile"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Id"
+          },
+          "ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ids"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "TodoConfirmParams",
+        "type": "object"
+      },
+      "TodoIdParams": {
+        "additionalProperties": false,
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Profile"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "id"
+        ],
+        "title": "TodoIdParams",
+        "type": "object"
+      },
       "TodoState": {
         "additionalProperties": false,
         "description": "``tool_progress._normalize_todo_state``: the authoritative todo snapshot.",
@@ -35785,6 +36279,127 @@
         "title": "TodoState",
         "type": "object"
       },
+      "TodoStateResult": {
+        "additionalProperties": false,
+        "description": "``methods_todo._todo_payload``: the full task snapshot after a task-list call.",
+        "properties": {
+          "todos": {
+            "items": {},
+            "title": "Todos",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "user_confirmed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "User Confirmed",
+            "type": "array"
+          },
+          "keep_open": {
+            "title": "Keep Open",
+            "type": "boolean"
+          },
+          "outstanding_labels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Outstanding Labels",
+            "type": "array"
+          }
+        },
+        "required": [
+          "todos",
+          "revision",
+          "user_confirmed",
+          "keep_open",
+          "outstanding_labels"
+        ],
+        "title": "TodoStateResult",
+        "type": "object"
+      },
+      "TodoUpdateParams": {
+        "additionalProperties": false,
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Profile"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Content"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          },
+          "work_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Work Status"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Blocked Reason"
+          }
+        },
+        "required": [
+          "session_id",
+          "id"
+        ],
+        "title": "TodoUpdateParams",
+        "type": "object"
+      },
       "TodoUpdatedPayload": {
         "additionalProperties": false,
         "description": "``tool_progress._normalize_todo_state`` \u2014 full task snapshot.",
@@ -35797,6 +36412,48 @@
           "revision": {
             "title": "Revision",
             "type": "integer"
+          },
+          "user_confirmed": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "User Confirmed"
+          },
+          "keep_open": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Keep Open"
+          },
+          "outstanding_labels": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Outstanding Labels"
           }
         },
         "required": [
