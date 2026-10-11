@@ -84,3 +84,23 @@ def test_build_command_modes(monkeypatch):
     assert "--sandbox" in A.build_command("codex", "go", repo="/r")
     assert "--dir" in A.build_command("opencode", "go", repo="/r")
     assert "--trust" in A.build_command("cursor", "go", repo="/r")
+
+
+def test_interactive_command_launches_each_agents_own_ui(monkeypatch):
+    monkeypatch.setattr(A, "find_bin", lambda agent: f"/bin/{agent}")
+    assert A.interactive_command("claude") == ["/bin/claude"]
+    assert A.interactive_command("claude", resume=True) == ["/bin/claude", "--continue"]
+    assert A.interactive_command("codex", resume=True) == ["/bin/codex", "resume", "--last"]
+    assert A.interactive_command("opencode", resume=True) == ["/bin/opencode", "--continue"]
+    assert A.interactive_command("cursor") == ["/bin/cursor"]
+    monkeypatch.setattr(A, "find_bin", lambda agent: None)
+    assert A.interactive_command("claude") is None
+
+
+def test_opencode_headless_env_allows_instruction_homes_but_interactive_does_not_override():
+    env = A.extra_env("opencode", False)
+    cfg = json.loads(env["OPENCODE_CONFIG_CONTENT"])["permission"]["external_directory"]
+    assert cfg["~/.claude/**"] == "allow" and cfg["*"] == "deny"
+    assert json.loads(A.extra_env("opencode", True)["OPENCODE_CONFIG_CONTENT"])["permission"]["external_directory"]["*"] == "allow"
+    assert A.extra_env("opencode", False, interactive=True) == {}
+    assert A.extra_env("claude") == {}

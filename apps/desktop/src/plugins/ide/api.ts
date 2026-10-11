@@ -58,9 +58,13 @@ export const ideApi = {
   setSettings: (s: { fullAuto?: boolean }) => post<IdeState['settings']>('/settings', s),
   state: () => call<IdeState>('/state'),
   stop: (run: string) => post<{ ok: boolean }>(`/runs/${run}/stop`),
+  opencodeWeb: (path: string) => post<{ url: string }>('/opencode/web', { path }),
   termInput: (id: string, data: string) => post<{ ok: boolean }>(`/terminal/${id}/input`, { data }),
   termKill: (id: string) => call<{ ok: boolean }>(`/terminal/${id}`, { method: 'DELETE' }),
-  termNew: (cwd: null | string, cols: number, rows: number) => post<{ id: string }>('/terminal', { cols, cwd, rows }),
-  termRead: (id: string, after: number) => call<{ alive: boolean; data: string; next: number }>(`/terminal/${id}/read?after=${after}`),
+  termList: (kind = '') => call<{ alive: boolean; cwd: string; id: string; kind: string; title: string }[]>(`/terminal?${q({ kind })}`),
+  termNew: (o: { cols: number; cwd: null | string; kind?: string; resume?: boolean; rows: number; title?: string }) =>
+    post<{ id: string; title: string }>('/terminal', o),
+  termRead: (id: string, after: number, wait = 0) =>
+    call<{ alive: boolean; data: string; exit: null | number; next: number }>(`/terminal/${id}/read?after=${after}&wait=${wait}`, { timeoutMs: (wait + 15) * 1000 }),
   termResize: (id: string, cols: number, rows: number) => post<{ ok: boolean }>(`/terminal/${id}/resize`, { cols, rows })
 }
