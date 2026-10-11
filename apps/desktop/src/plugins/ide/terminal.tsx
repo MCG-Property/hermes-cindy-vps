@@ -158,7 +158,11 @@ export function AgentTerminal({ cwd, fontSize = 12.5, kind, nonce = 0, onReady, 
 
     void (async () => {
       try {
+        // Re-attach to the PTY we had; if it is gone (backend restarted) start the agent again, resuming its last
+        // session when it has one and falling back to a fresh session when it exits straight away.
         let info: null | { id: string; title: string } = null
+        const explicit = !!resume || restart > 0
+        let useResume = explicit || !!termId
 
         if (termId && restart === 0) {
           const alive = await ideApi.termList(kind === 'shell' ? '' : kind).catch(() => [])
@@ -166,40 +170,59 @@ export function AgentTerminal({ cwd, fontSize = 12.5, kind, nonce = 0, onReady, 
 
           if (hit) {
             info = { id: hit.id, title: hit.title }
+            useResume = false
           }
         }
 
-        if (!info) {
-          info = await ideApi.termNew({ cols: term.cols, cwd, kind, resume: resume || restart > 0 || !!termId, rows: term.rows })
-        }
+        for (let attempt = 0; attempt < 2 && !dead; attempt++) {
+          const startedAt = Date.now()
 
-        id = info.id
-        onReady?.(info)
-        void ideApi.termResize(id, term.cols, term.rows).catch(() => undefined)
-        void flush()
-
-        while (!dead) {
-          try {
-            const r = await ideApi.termRead(id, after, 20)
-            after = r.next
-
-            if (r.data) {
-              term.write(dec.decode(b64(r.data), { stream: true }))
-            }
-
-            if (!r.alive && !r.data) {
-              setExited(r.exit ?? 0)
-
-              break
-            }
-          } catch (e) {
-            if (dead) {
-              break
-            }
-
-            setError(e instanceof Error ? e.message : String(e))
-            await new Promise(res => setTimeout(res, 1500))
+          if (!info) {
+            info = await ideApi.termNew({ cols: term.cols, cwd, kind, resume: useResume, rows: term.rows })
           }
+
+          id = info.id
+          after = 0
+          onReady?.(info)
+          void ideApi.termResize(id, term.cols, term.rows).catch(() => undefined)
+          void flush()
+          let quickFail = false
+
+          while (!dead) {
+            try {
+              const r = await ideApi.termRead(id, after, 20)
+              after = r.next
+
+              if (r.data) {
+                term.write(dec.decode(b64(r.data), { stream: true }))
+              }
+
+              if (!r.alive && !r.data) {
+                quickFail = useResume && !explicit && !!r.exit && Date.now() - startedAt < 6000
+
+                if (!quickFail) {
+                  setExited(r.exit ?? 0)
+                }
+
+                break
+              }
+            } catch (e) {
+              if (dead) {
+                break
+              }
+
+              setError(e instanceof Error ? e.message : String(e))
+              await new Promise(res => setTimeout(res, 1500))
+            }
+          }
+
+          if (!quickFail) {
+            break
+          }
+
+          term.reset()
+          info = null
+          useResume = false
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))

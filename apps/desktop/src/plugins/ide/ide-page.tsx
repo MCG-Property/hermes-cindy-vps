@@ -1,6 +1,7 @@
 import { cn, Codicon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, useValue } from '@hermes/plugin-sdk'
 
 import { AgentPanel } from './agent-panel'
+import { CursorApp } from './cursor-app'
 import { HermesChat } from './hermes-chat'
 import { SKINS } from './skins'
 import { Splitter, useSize } from './splitter'
@@ -25,7 +26,11 @@ function Surface({ agent, id, visible }: { agent: AgentId; id: string; visible: 
   const views = useValue($views)
   const view = views[id] ?? (agent === 'cursor' ? 'chat' : 'tui')
 
-  return view === 'chat' ? <AgentPanel agent={agent} id={id} visible={visible} /> : <TuiPanel agent={agent} id={id} visible={visible} />
+  if (view === 'chat') {
+    return agent === 'cursor' ? <CursorApp id={id} visible={visible} /> : <AgentPanel agent={agent} id={id} visible={visible} />
+  }
+
+  return <TuiPanel agent={agent} id={id} visible={visible} />
 }
 
 function Slot({ children, id, last, visible }: { children: React.ReactNode; id: string; last: boolean; visible: boolean }) {

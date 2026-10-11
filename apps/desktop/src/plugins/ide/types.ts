@@ -55,13 +55,34 @@ export interface ChatFull extends ChatLight {
   ui: Turn[]
 }
 
+export interface Project {
+  created: number
+  id: string
+  name: string
+  repos: string[]
+}
+
+export interface Automation {
+  agent: AgentId
+  created: number
+  enabled: boolean
+  everyMin: number
+  id: string
+  last: number
+  name: string
+  prompt: string
+  repo: null | string
+}
+
 export interface IdeState {
+  automations: Automation[]
+  projects: Project[]
   agents: AgentStatus[]
   chats: ChatLight[]
   home: string
   platform: string
   repos: Repo[]
-  settings: { fullAuto?: boolean }
+  settings: { cursorModel?: string; fullAuto?: boolean }
 }
 
 export type RunEvent =

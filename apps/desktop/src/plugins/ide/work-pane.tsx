@@ -43,7 +43,7 @@ function Tree({ depth = 0, onOpen, path }: { depth?: number; onOpen: (p: string)
   )
 }
 
-function FilesTab({ repo }: { repo: string }) {
+export function FilesTab({ repo }: { repo: string }) {
   const [file, setFile] = useState<null | string>(null)
   const [text, setText] = useState('')
   const [note, setNote] = useState('')
@@ -128,7 +128,7 @@ function FilesTab({ repo }: { repo: string }) {
   )
 }
 
-function ChangesTab({ repo }: { repo: string }) {
+export function ChangesTab({ repo }: { repo: string }) {
   const [rows, setRows] = useState<GitChange[]>([])
   const [diff, setDiff] = useState('')
 
@@ -175,7 +175,7 @@ function ChangesTab({ repo }: { repo: string }) {
   )
 }
 
-function BrowserTab({ url, onUrl }: { onUrl: (u: string) => void; url: string }) {
+export function BrowserTab({ url, onUrl }: { onUrl: (u: string) => void; url: string }) {
   const [draft, setDraft] = useState(url)
 
   useEffect(() => setDraft(url), [url])

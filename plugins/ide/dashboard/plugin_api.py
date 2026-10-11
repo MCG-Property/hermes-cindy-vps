@@ -16,6 +16,7 @@ import os
 import pty
 import re
 import select
+import shutil
 import signal
 import struct
 import subprocess
@@ -141,6 +142,21 @@ class TermResize(BaseModel):
 
 class SettingsIn(BaseModel):
     fullAuto: Optional[bool] = None
+    cursorModel: Optional[str] = None
+
+
+class ProjectIn(BaseModel):
+    name: str
+    repos: List[str] = Field(default_factory=list)
+
+
+class AutomationIn(BaseModel):
+    name: str
+    prompt: str
+    repo: Optional[str] = None
+    agent: str = "cursor"
+    everyMin: int = 60
+    enabled: bool = True
 
 
 # ------------------------------------------------------------------------------------------------------ state routes
@@ -157,7 +173,166 @@ def get_state() -> Dict[str, Any]:
     st = _load()
     with _LOCK:
         return {"repos": st["repos"], "chats": [_chat_light(c) for c in st["chats"]], "agents": _agent_status(), "settings": st.get("settings", {}),
-                "home": str(Path.home()), "platform": sys.platform}
+                "projects": st.get("projects", []), "automations": st.get("automations", []), "home": str(Path.home()), "platform": sys.platform}
+
+
+@router.get("/models")
+def list_models(agent: str) -> Dict[str, Any]:
+    """Models the given agent CLI offers (best effort; empty when it needs a login or has no listing)."""
+    exe = A.find_bin(agent) if agent in A.AGENT_IDS else None
+    if not exe:
+        return {"models": []}
+    cmd = {"cursor": [exe, "--list-models"], "opencode": [exe, "models"]}.get(agent)
+    if not cmd:
+        return {"models": []}
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=25, env={**os.environ, "PATH": A.search_path(), "NO_COLOR": "1"})
+    except Exception:
+        return {"models": []}
+    models = []
+    for line in (r.stdout or "").splitlines():
+        line = re.sub(r"\x1b\[[0-9;]*m", "", line).strip(" -•*\t")
+        if line and " " not in line.split(" - ")[0].strip() and not line.lower().startswith(("available", "loading", "error")):
+            models.append(line.split(" - ")[0].strip())
+    return {"models": models[:80]}
+
+
+@router.post("/open-in-editor")
+def open_in_editor(body: RepoIn) -> Dict[str, Any]:
+    """Open a folder in a desktop editor installed on THIS machine (Cursor, then VS Code)."""
+    p = str(_safe(body.path))
+    for name in ("cursor", "code"):
+        exe = shutil.which(name, path=A.search_path())
+        if exe:
+            subprocess.Popen([exe, p], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            return {"opened": name}
+    if sys.platform == "darwin":
+        subprocess.Popen(["open", p], start_new_session=True)
+        return {"opened": "finder"}
+    raise HTTPException(400, "no desktop editor found on this machine")
+
+
+# ---------------------------------------------------------------------------------------------- projects & automations
+@router.get("/projects")
+def get_projects() -> List[Dict[str, Any]]:
+    return _load().get("projects", [])
+
+
+@router.post("/projects")
+def add_project(body: ProjectIn) -> Dict[str, Any]:
+    with _LOCK:
+        st = _load()
+        pr = {"id": _uid(), "name": body.name.strip() or "Project", "repos": body.repos, "created": int(time.time() * 1000)}
+        st.setdefault("projects", []).append(pr)
+        _save(st)
+        return pr
+
+
+@router.delete("/projects/{pid}")
+def del_project(pid: str) -> Dict[str, bool]:
+    with _LOCK:
+        st = _load()
+        st["projects"] = [p for p in st.get("projects", []) if p["id"] != pid]
+        _save(st)
+    return {"ok": True}
+
+
+@router.get("/automations")
+def get_automations() -> List[Dict[str, Any]]:
+    return _load().get("automations", [])
+
+
+@router.post("/automations")
+def add_automation(body: AutomationIn) -> Dict[str, Any]:
+    if body.agent not in A.AGENT_IDS:
+        raise HTTPException(400, "unknown agent")
+    with _LOCK:
+        st = _load()
+        a = {**body.model_dump(), "id": _uid(), "last": 0, "created": int(time.time() * 1000)}
+        a["everyMin"] = max(1, a["everyMin"])
+        st.setdefault("automations", []).append(a)
+        _save(st)
+    _ensure_scheduler()
+    return a
+
+
+@router.delete("/automations/{aid}")
+def del_automation(aid: str) -> Dict[str, bool]:
+    with _LOCK:
+        st = _load()
+        st["automations"] = [a for a in st.get("automations", []) if a["id"] != aid]
+        _save(st)
+    return {"ok": True}
+
+
+@router.post("/automations/{aid}/run")
+def run_automation_now(aid: str) -> Dict[str, Any]:
+    with _LOCK:
+        a = next((x for x in _load().get("automations", []) if x["id"] == aid), None)
+    if not a:
+        raise HTTPException(404, "automation not found")
+    return _run_automation(a)
+
+
+def _run_automation(a: Dict[str, Any]) -> Dict[str, Any]:
+    """Start one chat run for an automation (same path as a user send) and stamp ``last``."""
+    repo = a.get("repo") or str(Path.home())
+    with _LOCK:
+        st = _load()
+        c = {"id": _uid(), "title": a["name"], "repo": a.get("repo"), "agent": a["agent"], "pinned": False, "created": int(time.time() * 1000),
+             "updated": int(time.time() * 1000), "ui": [{"id": _uid(), "role": "user", "text": a["prompt"], "ts": int(time.time() * 1000)}], "sessions": {}, "unread": True}
+        st["chats"].insert(0, c)
+        for x in st.get("automations", []):
+            if x["id"] == a["id"]:
+                x["last"] = int(time.time() * 1000)
+        _save(st)
+        full = bool(st.get("settings", {}).get("fullAuto"))
+    try:
+        argv = A.build_command(a["agent"], a["prompt"], repo=repo, mode="agent", full_auto=full)
+    except FileNotFoundError as exc:
+        return {"error": str(exc)}
+    run = Run(c["id"], a["agent"])
+    _RUNS[run.id] = run
+    _RUN_BY_CHAT[c["id"]] = run.id
+
+    def work():
+        turn = {"id": _uid(), "role": "assistant", "agent": a["agent"], "text": "", "steps": [], "ts": int(time.time() * 1000)}
+        try:
+            s = _drive(run, argv, repo, a["agent"], sink=turn, full=full)
+            turn["worked"] = int(time.time() - run.started)
+            _persist_turn(c["id"], turn, {a["agent"]: s["session"]} if s.get("session") else None)
+        finally:
+            run.done = True
+            run.emit({"type": "done", "worked": int(time.time() - run.started)})
+            _RUN_BY_CHAT.pop(c["id"], None)
+
+    threading.Thread(target=work, daemon=True, name="ide-automation").start()
+    return {"chat": c["id"], "run": run.id}
+
+
+_SCHED: Dict[str, Any] = {"thread": None}
+
+
+def _scheduler() -> None:
+    while True:
+        time.sleep(30)
+        try:
+            now = int(time.time() * 1000)
+            for a in list(_load().get("automations", [])):
+                if a.get("enabled", True) and now - int(a.get("last") or a.get("created") or 0) >= int(a.get("everyMin", 60)) * 60000:
+                    _run_automation(a)
+        except Exception:  # never let the scheduler die
+            log.exception("ide scheduler tick failed")
+
+
+def _ensure_scheduler() -> None:
+    if _SCHED["thread"] is None or not _SCHED["thread"].is_alive():
+        t = threading.Thread(target=_scheduler, daemon=True, name="ide-scheduler")
+        _SCHED["thread"] = t
+        t.start()
+
+
+_ensure_scheduler()
 
 
 @router.post("/settings")
