@@ -109,60 +109,119 @@ function CursorTurn({ busy, onApply, onFork, onLink, turn }: { busy: boolean; on
   )
 }
 
-// ---------- TUI skins (Claude Code, Codex): glyph-led monospace transcript ----------
+// ---------- Claude desktop app (Code tab): serif assistant text, plain user text, collapsible tool rows ----------
 
-function TuiTurn({ busy, onApply, onLink, skin, turn }: { busy: boolean; onApply?: (c: string) => void; onLink?: (u: string) => void; skin: Skin; turn: Turn }) {
-  const g = skin.glyph
+const STEP_ICON: Record<string, string> = { agent: 'organization', edit: 'edit', other: 'tools', read: 'file', search: 'search', shell: 'terminal', todo: 'checklist', web: 'globe' }
+
+function ClaudeDesktopTurn({ busy, onApply, onLink, skin, turn }: { busy: boolean; onApply?: (c: string) => void; onLink?: (u: string) => void; skin: Skin; turn: Turn }) {
+  const [open, setOpen] = useState<Record<string, boolean>>({})
 
   if (turn.role === 'user') {
     return (
-      <div className="my-3 flex gap-2 rounded-md bg-(--ui-bg-quaternary)/60 px-2.5 py-1.5 font-mono text-[0.82rem]">
-        <span style={{ color: skin.accent }}>{g.user}</span>
-        <span className="whitespace-pre-wrap select-text">{turn.text}</span>
+      <div className="my-5 ml-auto w-fit max-w-[88%] rounded-2xl bg-(--ui-bg-quaternary) px-4 py-2.5 text-[0.92rem] leading-relaxed whitespace-pre-wrap select-text">
+        {turn.attachments?.length ? <div className="mb-1.5 flex flex-wrap gap-1">{turn.attachments.map(a => <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[0.72rem]" key={a}>{a}</span>)}</div> : null}
+        {turn.text}
       </div>
     )
   }
 
   return (
-    <div className="my-2 font-mono text-[0.82rem] leading-relaxed">
-      {turn.thinking ? (
-        <div className="mb-1 flex gap-2 text-(--ui-text-tertiary) italic">
-          <span style={{ color: skin.accent }}>{g.thinking}</span>
-          <span>{busy ? 'Thinking…' : 'Thought'} </span>
-        </div>
-      ) : null}
-      {(turn.steps ?? []).map(s => (
-        <div className="my-1" key={s.id}>
-          <div className="flex gap-2">
-            <span style={{ color: s.result === undefined ? skin.accent : s.ok === false ? skin.err : skin.ok }}>{g.assistant}</span>
-            <span>
-              <b style={{ color: skin.accentSoft }}>{skin.label === 'Codex' ? (s.kind === 'shell' ? 'Ran' : verb(s)) : `${s.name}(`}</b>
-              <span className="text-(--ui-text-secondary)">{skin.label === 'Codex' ? ' ' : ''}{firstLine(s.arg, 90)}</span>
-              {skin.label === 'Codex' ? null : <b style={{ color: skin.accentSoft }}>)</b>}
-            </span>
+    <div className="my-3 flex gap-3">
+      <span className="mt-1 select-none text-[1.15rem] leading-none" style={{ color: skin.accent }}>
+        ✻
+      </span>
+      <div className="min-w-0 flex-1">
+        {turn.thinking ? (
+          <div className="mb-1 text-[0.82rem] text-(--ui-text-tertiary) italic">{busy && !turn.text ? 'Thinking…' : 'Thought'}</div>
+        ) : null}
+        {(turn.steps ?? []).map(s => (
+          <div className="my-1" key={s.id}>
+            <button className="flex w-full items-center gap-2 rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-widget-surface-background) px-2.5 py-1.5 text-left text-[0.8rem] hover:bg-(--chrome-action-hover)" onClick={() => setOpen(o => ({ ...o, [s.id]: !o[s.id] }))} type="button">
+              <Codicon name={STEP_ICON[s.kind ?? 'other'] ?? 'tools'} size="0.85rem" style={{ color: s.result === undefined ? skin.accent : s.ok === false ? skin.err : undefined }} />
+              <span className="font-medium">{verb(s)}</span>
+              <span className="min-w-0 flex-1 truncate font-mono text-[0.74rem] text-(--ui-text-tertiary)">{firstLine(s.arg, 90)}</span>
+              {s.result === undefined ? <span className="size-3 animate-spin rounded-full border-2 border-current border-r-transparent text-(--ui-text-tertiary)" /> : <Codicon name={open[s.id] ? 'chevron-up' : 'chevron-down'} size="0.75rem" />}
+            </button>
+            {open[s.id] && s.result ? <pre className="mx-1 mt-1 max-h-48 overflow-auto rounded-lg bg-(--ui-widget-surface-background) p-2.5 font-mono text-[0.72rem] whitespace-pre-wrap text-(--ui-text-secondary)">{s.result}</pre> : null}
           </div>
-          {s.result !== undefined ? (
-            <div className="ml-1 flex gap-2 text-(--ui-text-tertiary)">
-              <span>{g.result}</span>
-              <span className="whitespace-pre-wrap">{firstLine(s.result, 160) || (s.ok === false ? 'failed' : 'done')}</span>
+        ))}
+        {turn.text ? (
+          <div className="text-[0.98rem] leading-[1.7]" style={{ fontFamily: 'ui-serif, "Tiempos Text", Georgia, serif' }}>
+            <Body onApply={onApply} onLink={onLink} text={turn.text} />
+          </div>
+        ) : null}
+        {turn.error ? <div className="my-1 text-(--ui-error,#ff6b80)">{turn.error}</div> : null}
+        {busy ? (
+          <div className="mt-1 flex items-center gap-2 text-[0.84rem]" style={{ color: skin.accent }}>
+            <span className="animate-pulse">✻</span>
+            <span>Thinking…</span>
+          </div>
+        ) : turn.text ? (
+          <div className="mt-1 flex items-center gap-1 text-(--ui-text-tertiary)">
+            <CopyButton className="size-6" text={turn.text} />
+            <span className="ml-1 text-[0.74rem]">{turn.worked ? `Worked for ${dur(Math.max(1, turn.worked))}` : ''}</span>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+// ---------- Codex desktop app: right-aligned user bubble, plain assistant text, grouped command / edit lines ----------
+
+function CodexDesktopTurn({ busy, onApply, onLink, skin, turn }: { busy: boolean; onApply?: (c: string) => void; onLink?: (u: string) => void; skin: Skin; turn: Turn }) {
+  const [open, setOpen] = useState(false)
+
+  if (turn.role === 'user') {
+    return (
+      <div className="my-4 ml-auto w-fit max-w-[82%] rounded-[18px] bg-(--ui-bg-quaternary) px-4 py-2.5 text-[0.9rem] leading-relaxed whitespace-pre-wrap select-text">
+        {turn.attachments?.length ? <div className="mb-1.5 flex flex-wrap gap-1">{turn.attachments.map(a => <span className="rounded-full bg-white/10 px-2 py-0.5 text-[0.72rem]" key={a}>{a}</span>)}</div> : null}
+        {turn.text}
+      </div>
+    )
+  }
+
+  const steps = turn.steps ?? []
+  const cmds = steps.filter(s => s.kind === 'shell')
+  const edits = steps.filter(s => s.kind === 'edit')
+  const rest = steps.filter(s => s.kind !== 'shell' && s.kind !== 'edit')
+
+  return (
+    <div className="my-3 text-[0.92rem] leading-relaxed">
+      {turn.thinking ? <div className="mb-1 text-[0.8rem] text-(--ui-text-tertiary)">{busy && !turn.text ? 'Thinking…' : 'Thought'}</div> : null}
+      {steps.length ? (
+        <div className="mb-2">
+          <button className="flex items-center gap-1.5 text-[0.82rem] text-(--ui-text-tertiary) hover:text-(--ui-text-secondary)" onClick={() => setOpen(o => !o)} type="button">
+            <Codicon name={open ? 'chevron-down' : 'chevron-right'} size="0.75rem" />
+            {[cmds.length ? `Ran ${cmds.length} command${cmds.length > 1 ? 's' : ''}` : '', edits.length ? `Edited ${edits.length} file${edits.length > 1 ? 's' : ''}` : '', rest.length ? `Explored ${rest.length}` : ''].filter(Boolean).join(', ')}
+          </button>
+          {open ? (
+            <div className="mt-1 ml-1 space-y-0.5 border-l border-(--ui-stroke-tertiary) pl-3">
+              {steps.map(s => (
+                <div className="text-[0.78rem] text-(--ui-text-tertiary)" key={s.id}>
+                  <span className="text-(--ui-text-secondary)">{verb(s)}</span> <span className="font-mono text-[0.74rem]">{firstLine(s.arg, 90)}</span>
+                  {s.result ? <div className="line-clamp-3 font-mono text-[0.7rem] whitespace-pre-wrap">{s.result}</div> : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {edits.length ? (
+            <div className="mt-2 space-y-1">
+              {edits.map(s => (
+                <div className="flex items-center gap-2 rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-widget-surface-background) px-2.5 py-1.5 text-[0.8rem]" key={s.id}>
+                  <Codicon name="file" size="0.85rem" />
+                  <span className="min-w-0 flex-1 truncate font-mono text-[0.76rem]">{firstLine(s.arg, 80)}</span>
+                  <span style={{ color: s.ok === false ? skin.err : skin.ok }}>{s.result === undefined ? '…' : s.ok === false ? 'failed' : 'edited'}</span>
+                </div>
+              ))}
             </div>
           ) : null}
         </div>
-      ))}
-      {turn.text ? (
-        <div className="flex gap-2">
-          <span className="mt-[0.15rem]" style={{ color: skin.label === 'Codex' ? skin.accent : 'var(--ui-text-primary)' }}>{g.assistant}</span>
-          <Body onApply={onApply} onLink={onLink} text={turn.text} />
-        </div>
       ) : null}
-      {turn.error ? <div className="flex gap-2" style={{ color: skin.err }}><span>{g.assistant}</span>{turn.error}</div> : null}
-      {busy ? (
-        <div className="mt-1 flex items-center gap-2" style={{ color: skin.accent }}>
-          <span className="animate-pulse">{skin.label === 'Codex' ? '•' : '✻'}</span>
-          <span>{skin.label === 'Codex' ? 'Working' : 'Thinking…'}</span>
-          <span className="text-(--ui-text-tertiary)">(esc to interrupt)</span>
-        </div>
-      ) : null}
+      {turn.text ? <Body onApply={onApply} onLink={onLink} text={turn.text} /> : null}
+      {turn.error ? <div className="text-(--ui-error,#e06c75)">{turn.error}</div> : null}
+      {busy ? <div className="mt-1 flex items-center gap-2 text-[0.82rem] text-(--ui-text-tertiary)"><span className="size-3 animate-spin rounded-full border-2 border-current border-r-transparent" />Working</div> : null}
+      {!busy && turn.worked ? <div className="mt-1 text-[0.76rem] text-(--ui-text-tertiary)">Worked for {dur(Math.max(1, turn.worked))}</div> : null}
     </div>
   )
 }
@@ -249,7 +308,11 @@ export function Transcript({ agent, busy, live, onApply, onFork, onLink, turns }
           return <OpenCodeTurn busy={isLive && busy} key={k} onApply={onApply} onLink={onLink} skin={skin!} turn={t} />
         }
 
-        return <TuiTurn busy={isLive && busy} key={k} onApply={onApply} onLink={onLink} skin={skin!} turn={t} />
+        if (agent === 'claude') {
+          return <ClaudeDesktopTurn busy={isLive && busy} key={k} onApply={onApply} onLink={onLink} skin={skin!} turn={t} />
+        }
+
+        return <CodexDesktopTurn busy={isLive && busy} key={k} onApply={onApply} onLink={onLink} skin={skin!} turn={t} />
       })}
       <div className={cn('h-2')} />
     </>
