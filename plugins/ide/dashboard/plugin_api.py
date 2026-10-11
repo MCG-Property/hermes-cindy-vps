@@ -852,6 +852,15 @@ def git_changes(repo: str) -> List[Dict[str, Any]]:
     return [{"status": ln[:2].strip() or "?", "file": ln[3:], **stats.get(ln[3:], {})} for ln in st.splitlines() if ln]
 
 
+@router.get("/git/branch")
+def git_branch(repo: str) -> Dict[str, Any]:
+    r = _safe(repo)
+    if not (r / ".git").exists():
+        return {"git": False, "branch": None}
+    b = _git(str(r), "rev-parse", "--abbrev-ref", "HEAD").strip()
+    return {"git": True, "branch": b or None}
+
+
 @router.get("/git/diff")
 def git_diff(repo: str, file: str) -> Dict[str, str]:
     r = _safe(repo)
