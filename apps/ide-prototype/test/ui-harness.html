@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+:root{--vscode-font-family:-apple-system,BlinkMacSystemFont,sans-serif;--vscode-foreground:#e6e6e6;--vscode-sideBar-background:#141414;--vscode-input-background:#ffffff0a;--vscode-input-foreground:#e6e6e6;--vscode-input-border:#ffffff1a;--vscode-widget-border:#ffffff14;--vscode-focusBorder:#81a1c1aa;--vscode-editor-background:#181818;--vscode-editor-font-family:Menlo,monospace;--vscode-descriptionForeground:#9a9a9a;--vscode-badge-background:#81a1c1;--vscode-badge-foreground:#101418;--vscode-textCodeBlock-background:#ffffff12;--vscode-toolbar-hoverBackground:#ffffff14;--vscode-button-background:#81a1c1;--vscode-button-foreground:#101418;--vscode-button-hoverBackground:#94b1cc;--vscode-charts-yellow:#ebcb8b;--vscode-charts-green:#a3be8c;--vscode-errorForeground:#f48771;--vscode-keybindingLabel-background:#ffffff12;--vscode-keybindingLabel-border:#ffffff22;}
+</style><link rel="stylesheet" href="../ext/clone-ai/media/chat.css"></head><body><div id="app"></div>
+<script>
+const posted=[];window.acquireVsCodeApi=()=>({postMessage:(m)=>{posted.push(m);}});
+window.__send=(m)=>window.dispatchEvent(new MessageEvent('message',{data:m}));
+</script>
+<script src="../ext/clone-ai/media/chat.js"></script>
+<script>
+__send({type:'init',models:['qwen2.5-coder:7b','llama3.1:8b'],model:'qwen2.5-coder:7b',mode:'agent',ui:[],ctx:{file:'app.js',selection:{startLine:6,endLine:10}},changed:0});
+setTimeout(()=>{
+ document.getElementById('input').value='Add a JSDoc comment to average and handle empty arrays';
+ __send({type:'attachment',attachment:{kind:'file',name:'app.js',text:''}});
+ document.getElementById('send').click();
+ __send({type:'turnStart'});
+ __send({type:'event',ev:{type:'text',text:"I'll read the file first, then make a **minimal edit**.\n"}});
+ __send({type:'event',ev:{type:'tool',id:'1',name:'read_file',args:{path:'app.js'}}});
+ __send({type:'event',ev:{type:'tool_result',id:'1',name:'read_file',result:'1\t// Tiny demo project\n2\tfunction fibonacci(n) {'}});
+ __send({type:'event',ev:{type:'tool',id:'2',name:'edit_file',args:{path:'app.js',old_string:'x',new_string:'y'}}});
+ __send({type:'event',ev:{type:'tool_result',id:'2',name:'edit_file',result:'OK: edited app.js'}});
+ __send({type:'event',ev:{type:'text',text:"\nDone. Here is the updated function:\n```js path=app.js\n/**\n * Average of numbers.\n */\nfunction average(numbers) {\n  if (!numbers.length) return 0;\n  return numbers.reduce((a, b) => a + b, 0) / numbers.length;\n}\n```\n- handles empty input\n- uses `reduce`"}});
+ __send({type:'turnEnd',changed:1});
+},200);
+</script></body></html>

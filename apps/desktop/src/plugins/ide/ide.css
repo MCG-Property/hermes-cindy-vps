@@ -1,0 +1,3 @@
+/* IDE plugin — only what Tailwind tokens can't express. Surfaces use Hermes tokens; accents come from each agent's skin. */
+.xterm { height: 100%; }
+.xterm .xterm-viewport { background: transparent !important; }

@@ -1,0 +1,71 @@
+{
+  "name": "clone-ai",
+  "displayName": "Clone AI",
+  "description": "Chat, agent, inline edit (Cmd+K) and tab completion for Clone IDE. Works with any OpenAI-compatible endpoint (Ollama by default).",
+  "version": "0.1.0",
+  "publisher": "clone",
+  "license": "MIT",
+  "engines": { "vscode": "^1.100.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "categories": ["AI", "Chat", "Themes"],
+  "contributes": {
+    "viewsContainers": {
+      "secondarySidebar": [{ "id": "cloneAi", "title": "Chat", "icon": "media/icon.svg" }]
+    },
+    "views": {
+      "cloneAi": [{ "type": "webview", "id": "cloneAi.chat", "name": "Chat" }]
+    },
+    "commands": [
+      { "command": "cloneAi.focusChat", "title": "Clone AI: Focus Chat", "icon": "$(comment-discussion)" },
+      { "command": "cloneAi.newChat", "title": "Clone AI: New Chat", "icon": "$(add)" },
+      { "command": "cloneAi.addSelectionToChat", "title": "Clone AI: Add Selection to Chat" },
+      { "command": "cloneAi.agent", "title": "Clone AI: Open Agent" },
+      { "command": "cloneAi.inlineEdit", "title": "Clone AI: Edit Selection (Cmd+K)" },
+      { "command": "cloneAi.acceptEdit", "title": "Clone AI: Accept Edit" },
+      { "command": "cloneAi.rejectEdit", "title": "Clone AI: Reject Edit" },
+      { "command": "cloneAi.retryEdit", "title": "Clone AI: Retry Edit" },
+      { "command": "cloneAi.toggleTab", "title": "Clone AI: Toggle Tab Completion" },
+      { "command": "cloneAi.configureProvider", "title": "Clone AI: Configure Model Provider" },
+      { "command": "cloneAi.selectModel", "title": "Clone AI: Select Model" },
+      { "command": "cloneAi.explainSelection", "title": "Clone AI: Explain Selection" },
+      { "command": "cloneAi.fixProblems", "title": "Clone AI: Fix Problems in File" }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "cloneAi.newChat", "when": "view == cloneAi.chat", "group": "navigation" }
+      ],
+      "editor/context": [
+        { "command": "cloneAi.addSelectionToChat", "when": "editorHasSelection", "group": "9_cloneAi@1" },
+        { "command": "cloneAi.inlineEdit", "when": "editorHasSelection", "group": "9_cloneAi@2" },
+        { "command": "cloneAi.explainSelection", "when": "editorHasSelection", "group": "9_cloneAi@3" }
+      ]
+    },
+    "keybindings": [
+      { "command": "cloneAi.focusChat", "key": "cmd+l", "mac": "cmd+l", "win": "ctrl+l", "linux": "ctrl+l" },
+      { "command": "cloneAi.addSelectionToChat", "key": "cmd+shift+l", "mac": "cmd+shift+l", "win": "ctrl+shift+l", "linux": "ctrl+shift+l", "when": "editorTextFocus && editorHasSelection" },
+      { "command": "cloneAi.inlineEdit", "key": "cmd+k", "mac": "cmd+k", "win": "ctrl+k", "linux": "ctrl+k", "when": "editorTextFocus && !editorReadonly" },
+      { "command": "cloneAi.agent", "key": "cmd+i", "mac": "cmd+i", "win": "ctrl+i", "linux": "ctrl+i" },
+      { "command": "cloneAi.acceptEdit", "key": "cmd+enter", "mac": "cmd+enter", "win": "ctrl+enter", "linux": "ctrl+enter", "when": "cloneAi.hasPendingEdit && editorTextFocus" },
+      { "command": "cloneAi.rejectEdit", "key": "cmd+backspace", "mac": "cmd+backspace", "win": "ctrl+backspace", "linux": "ctrl+backspace", "when": "cloneAi.hasPendingEdit && editorTextFocus" }
+    ],
+    "configuration": {
+      "title": "Clone AI",
+      "properties": {
+        "cloneAi.baseUrl": { "type": "string", "default": "http://127.0.0.1:11434/v1", "description": "OpenAI-compatible base URL (Ollama, OpenRouter, LM Studio, vLLM, OpenAI...)." },
+        "cloneAi.model": { "type": "string", "default": "qwen2.5-coder:7b", "description": "Model used for chat, agent and inline edit." },
+        "cloneAi.tabModel": { "type": "string", "default": "", "description": "Model used for tab completion (defaults to cloneAi.model). FIM-capable models work best." },
+        "cloneAi.tab.enabled": { "type": "boolean", "default": true, "description": "Enable tab (ghost text) completions." },
+        "cloneAi.tab.debounceMs": { "type": "number", "default": 350 },
+        "cloneAi.agent.autoRunCommands": { "type": "boolean", "default": false, "description": "Run terminal commands the agent proposes without asking." },
+        "cloneAi.agent.maxSteps": { "type": "number", "default": 25 },
+        "cloneAi.temperature": { "type": "number", "default": 0.2 },
+        "cloneAi.rules.files": { "type": "array", "items": { "type": "string" }, "default": [".clonerules", ".cursorrules", "AGENTS.md", "CLAUDE.md"], "description": "Workspace files whose contents are added to every request as rules." }
+      }
+    },
+    "themes": [
+      { "label": "Clone Dark", "uiTheme": "vs-dark", "path": "./themes/clone-dark.json" },
+      { "label": "Clone Light", "uiTheme": "vs", "path": "./themes/clone-light.json" }
+    ]
+  }
+}

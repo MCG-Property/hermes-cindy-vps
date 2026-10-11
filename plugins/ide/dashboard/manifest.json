@@ -1,0 +1,9 @@
+{
+  "name": "ide",
+  "label": "IDE",
+  "description": "Coding-agent IDE backend — repos, files, git, terminals and unified runs of Cursor, Claude Code, OpenCode and Codex, plus the orchestrator chat that calls them as tools.",
+  "icon": "Code",
+  "version": "0.1.0",
+  "tab": { "path": "/ide", "hidden": true },
+  "api": "plugin_api.py"
+}

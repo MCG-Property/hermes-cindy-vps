@@ -1,0 +1,1 @@
+{"name":"clone-agents","version":"0.1.0","private":true,"main":"main.js","description":"Clone: agent-first window","dependencies":{"@lydell/node-pty":"^1.2.0-beta.15","@xterm/addon-fit":"^0.11.0","@xterm/xterm":"^6.0.0","electron":"^44.7.0"}}
