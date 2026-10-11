@@ -2,6 +2,7 @@ import { cn, Codicon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, Dropd
 import { useEffect, useRef, useState } from 'react'
 
 import { ideApi } from './api'
+import { type AppSkin } from './app-skins'
 
 export interface Attachment {
   kind: string
@@ -10,6 +11,10 @@ export interface Attachment {
 }
 
 interface Props {
+  accent: string
+  effort: string
+  onEffort: (e: string) => void
+  skin: AppSkin
   busy: boolean
   connection: string
   contextPct: number
@@ -134,24 +139,31 @@ export function CursorComposer(p: Props) {
     }
   }
 
-  const modeLabel = p.mode === 'agent' ? 'Agent' : p.mode === 'plan' ? 'Plan' : 'Ask'
+  const modeLabel = p.skin.composer.modes.find(m => m.id === p.mode)?.label ?? p.skin.composer.modes[0].label
   const hasText = text.trim().length > 0
+  const hasMic = p.skin.id === 'cursor' || p.skin.id === 'codex'
 
   return (
     <div className="relative">
-      <div className="mb-2 flex gap-2">
-        <button className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quaternary) px-2.5 text-[0.78rem] text-(--ui-text-secondary) hover:text-foreground" onClick={p.onOpenTerminal} type="button">
-          <Codicon name="terminal" size="0.8rem" />
-          {p.terminals > 0 ? `${p.terminals} ` : ''}Terminal
-        </button>
-        <button
-          className={cn('inline-flex h-7 items-center gap-1.5 rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quaternary) px-2.5 text-[0.78rem] text-(--ui-text-secondary) hover:text-foreground', p.design && 'border-sky-400/50 text-sky-300')}
-          onClick={p.onDesign}
-          type="button"
-        >
-          Design Mode
-        </button>
-      </div>
+      {p.skin.composer.chips.length ? (
+        <div className="mb-2 flex gap-2">
+          {p.skin.composer.chips.includes('terminal') ? (
+            <button className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quaternary) px-2.5 text-[0.78rem] text-(--ui-text-secondary) hover:text-foreground" onClick={p.onOpenTerminal} type="button">
+              <Codicon name="terminal" size="0.8rem" />
+              {p.terminals > 0 ? `${p.terminals} ` : ''}Terminal
+            </button>
+          ) : null}
+          {p.skin.composer.chips.includes('design') ? (
+            <button
+              className={cn('inline-flex h-7 items-center gap-1.5 rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quaternary) px-2.5 text-[0.78rem] text-(--ui-text-secondary) hover:text-foreground', p.design && 'border-sky-400/50 text-sky-300')}
+              onClick={p.onDesign}
+              type="button"
+            >
+              Design Mode
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <div className="rounded-[22px] border border-(--ui-stroke-tertiary) bg-(--ui-bg-quaternary) px-2.5 py-2 focus-within:border-(--ui-stroke-secondary)">
         {p.attachments.length ? (
           <div className="mb-1.5 flex flex-wrap gap-1.5 px-1.5">
@@ -207,7 +219,7 @@ export function CursorComposer(p: Props) {
                 p.onStop()
               }
             }}
-            placeholder={p.hasChat ? 'Send follow-up' : 'Plan, search, build anything'}
+            placeholder={p.hasChat ? p.skin.composer.followUp : p.skin.composer.initial}
             ref={ta}
             rows={1}
             value={text}
@@ -232,20 +244,37 @@ export function CursorComposer(p: Props) {
           </DropdownMenu>
           <button
             className={cn('grid size-8 shrink-0 place-items-center rounded-full text-[#151515] transition-opacity hover:opacity-90', listening ? 'bg-red-400' : 'bg-[#f2f2f2]')}
-            onClick={p.busy ? p.onStop : hasText ? send : toggleMic}
+            onClick={p.busy ? p.onStop : hasText || !hasMic ? send : toggleMic}
+            style={p.skin.id === 'claude' || p.skin.id === 'opencode' ? { background: p.accent, color: '#151515' } : undefined}
             title={p.busy ? 'Stop' : hasText ? 'Send' : listening ? 'Stop dictation' : 'Voice input'}
             type="button"
           >
-            <Codicon name={p.busy ? 'debug-stop' : hasText ? 'arrow-up' : 'mic-filled'} size="0.9rem" />
+            <Codicon name={p.busy ? 'debug-stop' : hasText || !hasMic ? 'arrow-up' : 'mic-filled'} size="0.9rem" />
           </button>
         </div>
       </div>
       <div className="flex items-center justify-between px-3 pt-1.5 text-[0.78rem] text-(--ui-text-secondary)">
         <span className="inline-flex items-center gap-1.5">
           <Codicon name="device-desktop" size="0.8rem" />
-          {p.connection}
+          {p.skin.composer.env === 'local' ? (p.connection === 'This Mac' ? 'Local' : `Local · ${p.connection}`) : p.connection}
         </span>
         <span className="inline-flex items-center gap-2">
+          {p.skin.composer.effort ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="rounded-md px-1.5 py-0.5 hover:bg-(--chrome-action-hover) hover:text-foreground" type="button">
+                  {p.effort}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {p.skin.composer.effort.map(e => (
+                  <DropdownMenuItem key={e} onSelect={() => p.onEffort(e)}>
+                    {e}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="rounded-md px-1.5 py-0.5 hover:bg-(--chrome-action-hover) hover:text-foreground" type="button">
@@ -253,18 +282,18 @@ export function CursorComposer(p: Props) {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {(['agent', 'plan', 'ask'] as const).map(m => (
-                <DropdownMenuItem key={m} onSelect={() => p.onMode(m)}>
-                  {m === 'agent' ? 'Agent' : m === 'plan' ? 'Plan' : 'Ask'}
+              {p.skin.composer.modes.map(m => (
+                <DropdownMenuItem key={m.id} onSelect={() => p.onMode(m.id)}>
+                  {m.label}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <span
+          {p.skin.id === 'cursor' || p.skin.id === 'codex' ? <span
             className={cn('size-3.5 rounded-full', p.busy && 'animate-spin')}
             style={{ background: `conic-gradient(#ffffffaa ${Math.max(4, p.contextPct)}%, #ffffff22 0)`, mask: 'radial-gradient(circle, transparent 3px, #000 4px)' }}
             title={`Context used: ${Math.round(p.contextPct)}%`}
-          />
+          /> : null}
         </span>
       </div>
       {note ? <div className="absolute -top-9 left-1/2 -translate-x-1/2 rounded-lg bg-black/80 px-3 py-1 text-[0.76rem] text-white">{note}</div> : null}

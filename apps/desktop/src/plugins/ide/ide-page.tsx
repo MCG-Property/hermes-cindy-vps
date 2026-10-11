@@ -1,7 +1,8 @@
-import { cn, Codicon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, useValue } from '@hermes/plugin-sdk'
+import { cn, Codicon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, host, useValue } from '@hermes/plugin-sdk'
+import { useEffect, useState } from 'react'
 
-import { AgentPanel } from './agent-panel'
-import { CursorApp } from './cursor-app'
+import { ideApi } from './api'
+import { DesktopApp } from './desktop-app'
 import { HermesChat } from './hermes-chat'
 import { SKINS } from './skins'
 import { Splitter, useSize } from './splitter'
@@ -12,25 +13,44 @@ import {
   $ideError,
   $layout,
   $panels,
-  $views,
   closePanel,
   openPanel,
   refresh
 } from './store'
 import { $repo } from './store'
 import { IdeTerminal } from './terminal'
-import { TuiPanel } from './tui-panel'
 import { AGENT_IDS, AGENT_LABEL, type AgentId } from './types'
 
-function Surface({ agent, id, visible }: { agent: AgentId; id: string; visible: boolean }) {
-  const views = useValue($views)
-  const view = views[id] ?? (agent === 'cursor' ? 'chat' : 'tui')
+function OpenCodeWeb({ visible }: { visible: boolean }) {
+  const repo = useValue($repo)
+  const [url, setUrl] = useState('')
+  const [err, setErr] = useState('')
 
-  if (view === 'chat') {
-    return agent === 'cursor' ? <CursorApp id={id} visible={visible} /> : <AgentPanel agent={agent} id={id} visible={visible} />
+  useEffect(() => {
+    if (!repo || !visible) {
+      return
+    }
+
+    void ideApi.opencodeWeb(repo).then(r => setUrl(r.url)).catch(e => setErr(e instanceof Error ? e.message : String(e)))
+  }, [repo, visible])
+
+  if (err) {
+    return <div className="p-6 text-(--ui-text-secondary)">{err}</div>
   }
 
-  return <TuiPanel agent={agent} id={id} visible={visible} />
+  return url ? <iframe className="h-full w-full border-0 bg-[#0a0a0a]" src={url} title="OpenCode" /> : <div className="grid h-full place-items-center text-(--ui-text-tertiary)">{repo ? 'Starting OpenCode…' : 'Add a repository to start OpenCode.'}</div>
+}
+
+/** Each panel is that coding agent's desktop-app UI. OpenCode's own desktop UI is its web app, served by the box it runs on; it is embedded as-is on
+ *  this machine, and rebuilt in the same style on remote boxes (a remote web UI can't be reached from the renderer). */
+function Surface({ agent, id, visible }: { agent: AgentId; id: string; visible: boolean }) {
+  const local = (host.state.connectionId.get() ?? 'local') === 'local'
+
+  if (agent === 'opencode' && local) {
+    return <OpenCodeWeb visible={visible} />
+  }
+
+  return <DesktopApp agent={agent} id={id} visible={visible} />
 }
 
 function Slot({ children, id, last, visible }: { children: React.ReactNode; id: string; last: boolean; visible: boolean }) {

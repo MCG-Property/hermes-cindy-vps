@@ -3,10 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AddRepoDialog, useWidth } from './agent-panel'
 import { ideApi } from './api'
+import { APP_SKINS, type AppSkin, type PaneKind } from './app-skins'
 import { type Attachment, CursorComposer } from './cursor-composer'
 import { ago, repoName } from './fold'
 import { Splitter, useSize } from './splitter'
-import { $chats, $ide, $panelChat, $repo, $repos, $views, refresh } from './store'
+import { $chats, $ide, $panelChat, $repo, $repos, refresh } from './store'
 import { AgentTerminal } from './terminal'
 import { Transcript } from './transcript'
 import type { AgentId, Automation, ChatLight } from './types'
@@ -14,7 +15,6 @@ import { useSession } from './use-session'
 import { BrowserTab, ChangesTab, FilesTab } from './work-pane'
 
 type Page = 'automations' | 'chat' | 'customize'
-type PaneKind = 'browser' | 'changes' | 'files' | 'terminal'
 interface PaneTab {
   id: string
   kind: PaneKind
@@ -45,7 +45,15 @@ function SidebarRow({ active, children, icon, onClick, right }: { active?: boole
   )
 }
 
+function dateBucket(ts: number): string {
+  const days = Math.floor((Date.now() - ts) / 86400000)
+
+  return days < 1 ? 'Today' : days < 2 ? 'Yesterday' : days < 8 ? 'Previous 7 days' : 'Older'
+}
+
 function Sidebar({
+  agent,
+  skin,
   activeChat,
   onAddRepo,
   onAutomations,
@@ -54,6 +62,8 @@ function Sidebar({
   onOpen,
   page
 }: {
+  agent: AgentId
+  skin: AppSkin
   activeChat: null | string
   onAddRepo: () => void
   onAutomations: () => void
@@ -72,7 +82,7 @@ function Sidebar({
   const [newProject, setNewProject] = useState(false)
   const [pname, setPname] = useState('')
   const [pRepos, setPRepos] = useState<string[]>([])
-  const mine = chats.filter(c => c.agent === 'cursor' && (!q || c.title.toLowerCase().includes(q.toLowerCase())))
+  const mine = chats.filter(c => c.agent === agent && (!q || c.title.toLowerCase().includes(q.toLowerCase())))
   const pinned = mine.filter(c => c.pinned)
   const projects = ide?.projects ?? []
   const shownRepos = project ? repos.filter(r => projects.find(p => p.id === project)?.repos.includes(r.path)) : repos
@@ -105,26 +115,27 @@ function Sidebar({
     <div className="flex h-full min-h-0 flex-col">
       <div className="space-y-px p-2">
         <SidebarRow icon="filter" onClick={() => onNew()}>
-          New Chat
+          {skin.newLabel}
         </SidebarRow>
         {searching ? (
           <div className="flex h-7 items-center gap-2.5 rounded-lg bg-(--ui-bg-quaternary) px-2">
             <Codicon name="search" size="0.9rem" />
-            <input autoFocus className="min-w-0 flex-1 bg-transparent text-[0.84rem] outline-none" onBlur={() => !q && setSearching(false)} onChange={e => setQ(e.target.value)} placeholder="Search chats" value={q} />
+            <input autoFocus className="min-w-0 flex-1 bg-transparent text-[0.84rem] outline-none" onBlur={() => !q && setSearching(false)} onChange={e => setQ(e.target.value)} placeholder={skin.searchPlaceholder} value={q} />
           </div>
         ) : (
           <SidebarRow icon="search" onClick={() => setSearching(true)}>
             Search
           </SidebarRow>
         )}
-        <SidebarRow active={page === 'automations'} icon="robot" onClick={onAutomations}>
-          Automations
-        </SidebarRow>
-        <SidebarRow active={page === 'customize'} icon="extensions" onClick={onCustomize}>
-          Customize
-        </SidebarRow>
+        {skin.nav.map(n => (
+          <SidebarRow active={page === n.id} icon={n.icon} key={n.id} onClick={n.id === 'automations' ? onAutomations : onCustomize}>
+            {n.label}
+          </SidebarRow>
+        ))}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        {skin.group === 'repos' ? (
+        <>
         <div className="flex items-center justify-between px-2 pt-3 pb-1 text-[0.72rem] text-(--ui-text-tertiary)">
           <span>Projects</span>
           <button className="grid size-5 place-items-center rounded hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={() => setNewProject(v => !v)} title="New project" type="button">
@@ -167,14 +178,38 @@ function Sidebar({
             <span className="truncate">{p.name}</span>
           </SidebarRow>
         ))}
+        </>
+        ) : null}
         {pinned.length ? (
           <>
             <div className="px-2 pt-3 pb-1 text-[0.72rem] text-(--ui-text-tertiary)">Pinned</div>
             {pinned.map(row)}
           </>
         ) : null}
+        {skin.group === 'date' ? (
+          <>
+            <div className="flex items-center justify-between px-2 pt-3 pb-1 text-[0.72rem] text-(--ui-text-tertiary)">
+              <span>{skin.sectionLabel}</span>
+              <button className="grid size-5 place-items-center rounded hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={onAddRepo} title="Add repository" type="button">
+                <Codicon name="new-folder" size="0.8rem" />
+              </button>
+            </div>
+            {(['Today', 'Yesterday', 'Previous 7 days', 'Older'] as const).map(b => {
+              const rows = mine.filter(c => !c.pinned && dateBucket(c.updated) === b).sort((x, y) => y.updated - x.updated)
+
+              return rows.length ? (
+                <div key={b}>
+                  <div className="px-2 pt-2 pb-0.5 text-[0.7rem] text-(--ui-text-tertiary)">{b}</div>
+                  {rows.map(row)}
+                </div>
+              ) : null
+            })}
+            {!mine.length ? <div className="px-2 py-1 text-[0.78rem] text-(--ui-text-tertiary)">{skin.empty}</div> : null}
+          </>
+        ) : (
+        <>
         <div className="flex items-center justify-between px-2 pt-3 pb-1 text-[0.72rem] text-(--ui-text-tertiary)">
-          <span>Repositories</span>
+          <span>{skin.sectionLabel}</span>
           <span className="flex items-center gap-0.5">
             <button className={cn('grid size-5 place-items-center rounded hover:bg-(--chrome-action-hover) hover:text-foreground', project && 'text-sky-300')} onClick={() => setProject(null)} title="Clear project filter" type="button">
               <Codicon name="filter" size="0.8rem" />
@@ -201,10 +236,12 @@ function Sidebar({
               >
                 <span className={cn('truncate', repo === r.path && 'text-foreground')}>{r.name}</span>
               </SidebarRow>
-              {rc.length ? rc.map(row) : <div className="py-1 pl-8 text-[0.76rem] text-(--ui-text-tertiary)">No agents yet</div>}
+              {rc.length ? rc.map(row) : <div className="py-1 pl-8 text-[0.76rem] text-(--ui-text-tertiary)">{skin.empty}</div>}
             </div>
           )
         })}
+        </>
+        )}
       </div>
       <div className="flex h-12 shrink-0 items-center gap-2.5 px-3">
         <span className="grid size-6 place-items-center rounded-full bg-gradient-to-br from-sky-300 to-slate-600 text-[0.7rem] font-semibold text-slate-900">C</span>
@@ -217,9 +254,9 @@ function Sidebar({
   )
 }
 
-function RightPane({ browserUrl, onBrowserUrl, repo, tabs, setTabs, active, setActive }: { active: string; browserUrl: string; onBrowserUrl: (u: string) => void; repo: null | string; setActive: (id: string) => void; setTabs: (t: PaneTab[]) => void; tabs: PaneTab[] }) {
+function RightPane({ browserUrl, onBrowserUrl, repo, skin, tabs, setTabs, active, setActive }: { active: string; browserUrl: string; onBrowserUrl: (u: string) => void; repo: null | string; setActive: (id: string) => void; setTabs: (t: PaneTab[]) => void; skin: AppSkin; tabs: PaneTab[] }) {
   const add = (kind: PaneKind, extra: Partial<PaneTab> = {}) => {
-    const t: PaneTab = { id: uid(), kind, title: kind === 'terminal' ? 'zsh' : kind[0].toUpperCase() + kind.slice(1), ...extra }
+    const t: PaneTab = { id: uid(), kind, title: kind === 'terminal' ? 'zsh' : skin.paneLabels[kind], ...extra }
     setTabs([...tabs, t])
     setActive(t.id)
   }
@@ -263,10 +300,10 @@ function RightPane({ browserUrl, onBrowserUrl, repo, tabs, setTabs, active, setA
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              {(['changes', 'browser', 'terminal', 'files'] as const).map(k => (
+              {skin.pane.map(k => (
                 <DropdownMenuItem key={k} onSelect={() => add(k)}>
                   <Codicon name={PANE_ICON[k]} size="0.85rem" />
-                  <span className="ml-2 capitalize">{k}</span>
+                  <span className="ml-2">{skin.paneLabels[k]}</span>
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -288,10 +325,10 @@ function RightPane({ browserUrl, onBrowserUrl, repo, tabs, setTabs, active, setA
               </>
             ) : null}
             <div className="mt-5 mb-2 text-[0.8rem] text-(--ui-text-tertiary)">On {repoName(repo) || 'this chat'}</div>
-            {(['changes', 'browser', 'terminal', 'files'] as const).map(k => (
+            {skin.pane.map(k => (
               <button className="flex h-8 w-full items-center gap-2.5 rounded-lg px-1 text-left hover:bg-(--chrome-action-hover)" key={k} onClick={() => add(k)} type="button">
                 <Codicon name={PANE_ICON[k]} size="0.9rem" />
-                <span className="capitalize">{k}</span>
+                <span>{skin.paneLabels[k]}</span>
               </button>
             ))}
           </div>
@@ -404,7 +441,8 @@ function CustomizePage() {
   )
 }
 
-export function CursorApp({ id, visible }: { id: string; visible: boolean }) {
+export function DesktopApp({ agent, id, visible }: { agent: AgentId; id: string; visible: boolean }) {
+  const skin = APP_SKINS[agent]
   const ide = useValue($ide)
   const repo = useValue($repo)
   const chats = useValue($chats)
@@ -418,10 +456,11 @@ export function CursorApp({ id, visible }: { id: string; visible: boolean }) {
   const [browserUrl, setBrowserUrl] = useState('')
   const [addRepo, setAddRepo] = useState(false)
   const [attachments, setAttachments] = useState<Attachment[]>([])
-  const [mode, setMode] = useState('agent')
+  const [mode, setMode] = useState(skin.composer.modes[0].id)
+  const [effort, setEffort] = useState(skin.composer.effort?.[1] ?? '')
   const [design, setDesign] = useState(false)
   const [models, setModels] = useState<string[]>([])
-  const [model, setModel] = useState(ide?.settings.cursorModel ?? '')
+  const [model, setModel] = useState(agent === 'cursor' ? (ide?.settings.cursorModel ?? '') : '')
   const [hist, setHist] = useState<string[]>([])
   const [hi, setHi] = useState(-1)
   const [sideW, setSideW] = useSize(`${id}.cursor.side`, 232, 170, 420)
@@ -436,16 +475,16 @@ export function CursorApp({ id, visible }: { id: string; visible: boolean }) {
   const paneEff = paneOpen ? Math.max(260, Math.min(paneW, width - sideEff - MAIN_MIN)) : 0
 
   useEffect(() => {
-    void ideApi.models('cursor').then(r => setModels(r.models)).catch(() => undefined)
-  }, [])
+    void ideApi.models(agent).then(r => setModels(r.models)).catch(() => undefined)
+  }, [agent])
 
   useEffect(() => {
     const u = ide?.settings.cursorModel
 
-    if (u !== undefined) {
+    if (agent === 'cursor' && u !== undefined) {
       setModel(u)
     }
-  }, [ide?.settings.cursorModel])
+  }, [agent, ide?.settings.cursorModel])
 
   const setChat = useCallback(
     (cid: string, push = true) => {
@@ -467,7 +506,7 @@ export function CursorApp({ id, visible }: { id: string; visible: boolean }) {
       let cid = chatId
 
       if (!cid) {
-        cid = (await ideApi.newChat('cursor', repo)).id
+        cid = (await ideApi.newChat(agent, repo)).id
         setChat(cid)
       }
 
@@ -476,7 +515,7 @@ export function CursorApp({ id, visible }: { id: string; visible: boolean }) {
 
       return r.run
     },
-    [chatId, mode, model, repo, setChat]
+    [agent, chatId, mode, model, repo, setChat]
   )
 
   const session = useSession({ key: chatId ?? `none-${id}`, load, start })
@@ -514,7 +553,7 @@ export function CursorApp({ id, visible }: { id: string; visible: boolean }) {
       return
     }
 
-    const t: PaneTab = { id: uid(), kind: k, title: k === 'terminal' ? 'zsh' : k[0].toUpperCase() + k.slice(1), ...extra }
+    const t: PaneTab = { id: uid(), kind: k, title: k === 'terminal' ? 'zsh' : skin.paneLabels[k], ...extra }
     setTabs(ts => [...ts, t])
     setActive(t.id)
   }
@@ -528,7 +567,7 @@ export function CursorApp({ id, visible }: { id: string; visible: boolean }) {
     }
   }
 
-  const title = page === 'automations' ? 'Automations' : page === 'customize' ? 'Customize' : (cur?.title ?? 'New chat')
+  const title = page === 'automations' ? 'Automations' : page === 'customize' ? (skin.nav.find(n => n.id === 'customize')?.label ?? 'Customize') : (cur?.title ?? (agent === 'cursor' ? 'New chat' : skin.newLabel))
   const widthOk = useMemo(() => true, [])
 
   return (
@@ -537,12 +576,14 @@ export function CursorApp({ id, visible }: { id: string; visible: boolean }) {
         <div className="relative h-full shrink-0 border-r border-(--ui-stroke-tertiary)" style={{ width: sideW }}>
           <Sidebar
             activeChat={chatId}
+            agent={agent}
             onAddRepo={() => setAddRepo(true)}
             onAutomations={() => setPage('automations')}
             onCustomize={() => setPage('customize')}
             onNew={newChat}
             onOpen={c => setChat(c.id)}
             page={page}
+            skin={skin}
           />
           <Splitter edge="right" onResize={setSideW} size={sideW} />
         </div>
@@ -583,7 +624,6 @@ export function CursorApp({ id, visible }: { id: string; visible: boolean }) {
 
  if (cur && t) {void ideApi.patchChat(cur.id, { title: t }).then(() => refresh())} }}>Rename…</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => $views.set({ ...$views.get(), [id]: 'tui' })}>Switch to Native UI</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => cur && void ideApi.deleteChat(cur.id).then(() => { newChat(); void refresh() })}>Delete chat</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -602,7 +642,7 @@ export function CursorApp({ id, visible }: { id: string; visible: boolean }) {
                 {session.turns.length === 0 && !session.live ? (
                   <div className="mt-[16vh] text-center text-(--ui-text-secondary)">
                     <div className="text-[1.3rem] font-semibold text-foreground">{repo ? repoName(repo) : 'What should we build?'}</div>
-                    <div className="mt-1">Describe the task. Cursor runs it in this repository.</div>
+                    <div className="mt-1">Describe the task. {skin.title} runs it in this repository.</div>
                     {!repo ? (
                       <button className="mt-4 rounded-lg bg-(--ui-bg-quaternary) px-3 py-1.5 text-[0.84rem] text-foreground hover:bg-(--chrome-action-hover)" onClick={() => setAddRepo(true)} type="button">
                         Add a repository
@@ -611,7 +651,7 @@ export function CursorApp({ id, visible }: { id: string; visible: boolean }) {
                   </div>
                 ) : null}
                 <Transcript
-                  agent="cursor"
+                  agent={agent}
                   busy={session.busy}
                   live={session.live}
                   onApply={code => void navigator.clipboard.writeText(code)}
@@ -624,17 +664,20 @@ export function CursorApp({ id, visible }: { id: string; visible: boolean }) {
             <div className="shrink-0 px-6 pb-3">
               <div className="mx-auto w-full max-w-[680px]">
                 <CursorComposer
+                  accent={skin.accent}
                   attachments={attachments}
                   busy={session.busy}
                   connection={connectionLabel()}
                   contextPct={ctxPct}
                   design={design}
+                  effort={effort}
                   hasChat={session.turns.length > 0}
                   key={menuKey}
                   mode={mode}
                   model={model}
                   models={models}
                   onDesign={() => { setDesign(d => !d); openTab('browser') }}
+                  onEffort={setEffort}
                   onMode={setMode}
                   onModel={m => { setModel(m); void ideApi.setSettings({ cursorModel: m }) }}
                   onOpenTerminal={() => openTab('terminal')}
@@ -642,6 +685,7 @@ export function CursorApp({ id, visible }: { id: string; visible: boolean }) {
                   onStop={session.stop}
                   repo={repo}
                   setAttachments={setAttachments}
+                  skin={skin}
                   terminals={termCount}
                 />
               </div>
@@ -652,7 +696,7 @@ export function CursorApp({ id, visible }: { id: string; visible: boolean }) {
       {paneOpen ? (
         <div className="relative h-full shrink-0" style={{ width: paneEff }}>
           <Splitter edge="left" onResize={setPaneW} size={paneEff} />
-          <RightPane active={active} browserUrl={browserUrl} onBrowserUrl={setBrowserUrl} repo={repo} setActive={setActive} setTabs={setTabs} tabs={tabs} />
+          <RightPane active={active} browserUrl={browserUrl} onBrowserUrl={setBrowserUrl} repo={repo} setActive={setActive} setTabs={setTabs} skin={skin} tabs={tabs} />
         </div>
       ) : null}
       {addRepo ? <AddRepoDialog onClose={() => setAddRepo(false)} /> : null}
