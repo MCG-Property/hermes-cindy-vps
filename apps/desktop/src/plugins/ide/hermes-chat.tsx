@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { ideApi } from './api'
 import { Composer } from './composer'
 import { repoName } from './fold'
+import { Splitter, useSize } from './splitter'
 import { $panels, $repo, openPanel } from './store'
 import { Transcript } from './transcript'
 import { AGENT_IDS, type AgentId } from './types'
@@ -17,6 +18,7 @@ export function HermesChat({ onClose }: { onClose: () => void }) {
   const repo = useValue($repo)
   const panels = useValue($panels)
   const scroller = useRef<HTMLDivElement>(null)
+  const [w, setW] = useSize('hermes', 360, 280, 760)
 
   const load = useCallback(async () => {
     const r = await ideApi.orchChat(repo ?? '')
@@ -49,7 +51,8 @@ export function HermesChat({ onClose }: { onClose: () => void }) {
   }, [session.turns, session.live])
 
   return (
-    <div className="flex h-full min-h-0 w-[340px] shrink-0 flex-col border-l border-(--ui-stroke-tertiary)">
+    <div className="relative flex h-full min-h-0 shrink-0 flex-col border-l border-(--ui-stroke-tertiary)" style={{ width: w }}>
+      <Splitter edge="left" onResize={setW} size={w} />
       <div className="flex h-10 shrink-0 items-center gap-2 px-3">
         <span className="grid size-5 place-items-center rounded-md bg-(--ui-bg-quaternary)">
           <Codicon name="sparkle" size="0.8rem" />

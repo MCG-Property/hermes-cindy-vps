@@ -125,6 +125,9 @@ class TermIn(BaseModel):
     cwd: Optional[str] = None
     cols: int = 100
     rows: int = 28
+    kind: str = "shell"
+    resume: bool = False
+    title: str = ""
 
 
 class TermWrite(BaseModel):
@@ -685,60 +688,96 @@ def git_diff(repo: str, file: str) -> Dict[str, str]:
 
 # ------------------------------------------------------------------------------------------------------ terminals
 class Term:
-    def __init__(self, cwd: str, cols: int, rows: int):
+    """A PTY on this box. Output is kept in a ring buffer addressed by absolute offsets so any number of readers can (re)attach,
+    and ``read`` can long-poll (``wait``) so keystroke echo latency is a network round-trip, not a polling interval."""
+
+    def __init__(self, cwd: str, cols: int, rows: int, argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None, kind: str = "shell", title: str = ""):
         self.id = _uid()
+        self.kind, self.cwd, self.title = kind, cwd, title or kind
+        self.created = int(time.time() * 1000)
         shell = os.environ.get("SHELL") or "/bin/bash"
+        argv = argv or [shell, "-l"]
+        child_env = {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor", "PATH": A.search_path(), "PWD": cwd, "LANG": os.environ.get("LANG") or "en_US.UTF-8", **(env or {})}
         pid, fd = pty.fork()
         if pid == 0:  # child
             try:
                 os.chdir(cwd)
             except OSError:
                 pass
-            os.environ.update({"TERM": "xterm-256color", "PATH": A.search_path()})
-            os.execv(shell, [shell, "-l"])
+            try:
+                os.execvpe(argv[0], argv, child_env)
+            except OSError:
+                os._exit(127)
         self.pid, self.fd = pid, fd
         self.buf = bytearray()
         self.base = 0  # absolute offset of buf[0]
-        self.lock = threading.Lock()
+        self.cond = threading.Condition()
         self.alive = True
+        self.exit_code: Optional[int] = None
         self.resize(cols, rows)
         threading.Thread(target=self._reader, daemon=True, name="ide-term").start()
 
     def resize(self, cols: int, rows: int) -> None:
         try:
             fcntl.ioctl(self.fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+            os.kill(self.pid, signal.SIGWINCH)
         except OSError:
             pass
 
     def _reader(self) -> None:
-        while self.alive:
+        while True:
             try:
                 r, _, _ = select.select([self.fd], [], [], 0.5)
                 if not r:
+                    if not self._child_alive():
+                        break
                     continue
                 data = os.read(self.fd, 65536)
             except OSError:
                 break
             if not data:
                 break
-            with self.lock:
+            with self.cond:
                 self.buf += data
-                if len(self.buf) > 2_000_000:
-                    drop = len(self.buf) - 1_000_000
+                if len(self.buf) > 4_000_000:
+                    drop = len(self.buf) - 2_000_000
                     del self.buf[:drop]
                     self.base += drop
-        self.alive = False
+                self.cond.notify_all()
+        with self.cond:
+            self.alive = False
+            self.cond.notify_all()
+        try:
+            _, st = os.waitpid(self.pid, os.WNOHANG)
+            self.exit_code = os.waitstatus_to_exitcode(st) if st else None
+        except (OSError, ChildProcessError):
+            pass
 
-    def read(self, after: int) -> Dict[str, Any]:
-        with self.lock:
+    def _child_alive(self) -> bool:
+        try:
+            pid, _ = os.waitpid(self.pid, os.WNOHANG)
+            return pid == 0
+        except ChildProcessError:
+            return False
+        except OSError:
+            return True
+
+    def read(self, after: int, wait: float = 0.0) -> Dict[str, Any]:
+        with self.cond:
+            if wait and self.alive and after >= self.base + len(self.buf):
+                self.cond.wait(timeout=wait)
             start = max(after, self.base)
             chunk = bytes(self.buf[start - self.base:])
-            return {"data": base64.b64encode(chunk).decode(), "next": start + len(chunk), "alive": self.alive}
+            return {"data": base64.b64encode(chunk).decode(), "next": start + len(chunk), "alive": self.alive, "exit": self.exit_code}
 
     def kill(self) -> None:
         self.alive = False
+        for sig in (signal.SIGHUP, signal.SIGKILL):
+            try:
+                os.kill(self.pid, sig)
+            except OSError:
+                break
         try:
-            os.kill(self.pid, signal.SIGHUP)
             os.close(self.fd)
         except OSError:
             pass
@@ -747,12 +786,30 @@ class Term:
 _TERMS: Dict[str, Term] = {}
 
 
+def _term_light(t: Term) -> Dict[str, Any]:
+    return {"id": t.id, "kind": t.kind, "cwd": t.cwd, "title": t.title, "alive": t.alive, "created": t.created}
+
+
+@router.get("/terminal")
+def term_list(kind: str = "") -> List[Dict[str, Any]]:
+    """Live terminals on this box (so the UI can re-attach after a reload)."""
+    return [_term_light(t) for t in _TERMS.values() if t.alive and (not kind or t.kind == kind)]
+
+
 @router.post("/terminal")
-def term_new(body: TermIn) -> Dict[str, str]:
+def term_new(body: TermIn) -> Dict[str, Any]:
     cwd = str(_safe(body.cwd)) if body.cwd else str(Path.home())
-    t = Term(cwd, body.cols, body.rows)
+    argv: Optional[List[str]] = None
+    env: Dict[str, str] = {}
+    kind = body.kind or "shell"
+    if kind in A.AGENT_IDS:
+        argv = A.interactive_command(kind, resume=body.resume)
+        if not argv:
+            raise HTTPException(400, f"{A.AGENT_META[kind]['label']} is not installed on this machine")
+        env = A.extra_env(kind, False, interactive=True)
+    t = Term(cwd, body.cols, body.rows, argv=argv, env=env, kind=kind, title=body.title or "")
     _TERMS[t.id] = t
-    return {"id": t.id}
+    return _term_light(t)
 
 
 def _term(tid: str) -> Term:
@@ -763,13 +820,20 @@ def _term(tid: str) -> Term:
 
 
 @router.get("/terminal/{tid}/read")
-def term_read(tid: str, after: int = 0) -> Dict[str, Any]:
-    return _term(tid).read(after)
+def term_read(tid: str, after: int = 0, wait: float = 0.0) -> Dict[str, Any]:
+    return _term(tid).read(after, min(max(wait, 0.0), 25.0))
 
 
 @router.post("/terminal/{tid}/input")
 def term_input(tid: str, body: TermWrite) -> Dict[str, bool]:
-    os.write(_term(tid).fd, body.data.encode())
+    t = _term(tid)
+    data = body.data.encode()
+    try:
+        while data:
+            n = os.write(t.fd, data)
+            data = data[n:]
+    except OSError:
+        raise HTTPException(410, "terminal closed")
     return {"ok": True}
 
 
@@ -785,3 +849,37 @@ def term_kill(tid: str) -> Dict[str, bool]:
     if t:
         t.kill()
     return {"ok": True}
+
+
+# ------------------------------------------------------------------------------------------------------ OpenCode web UI (local use)
+_OC_WEB: Dict[str, Any] = {}
+
+
+@router.post("/opencode/web")
+def opencode_web(body: RepoIn) -> Dict[str, Any]:
+    """Start the real OpenCode web UI (`opencode web`) for a repo on this box and return its local URL."""
+    exe = A.find_bin("opencode")
+    if not exe:
+        raise HTTPException(400, "OpenCode is not installed on this machine")
+    repo = str(_safe(body.path))
+    cur = _OC_WEB.get(repo)
+    if cur and cur["proc"].poll() is None:
+        return {"url": cur["url"]}
+    import socket
+
+    with socket.socket() as sk:
+        sk.bind(("127.0.0.1", 0))
+        port = sk.getsockname()[1]
+    proc = subprocess.Popen([exe, "web", "--port", str(port), "--hostname", "127.0.0.1"], cwd=repo, env={**os.environ, "PATH": A.search_path(), "BROWSER": "true", "NO_OPEN_BROWSER": "1"},
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, start_new_session=True)
+    url = f"http://127.0.0.1:{port}/"
+    for _ in range(60):
+        time.sleep(0.25)
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.3):
+                break
+        except OSError:
+            if proc.poll() is not None:
+                raise HTTPException(500, "OpenCode web exited")
+    _OC_WEB[repo] = {"proc": proc, "url": url}
+    return {"url": url}

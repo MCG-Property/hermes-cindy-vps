@@ -3,6 +3,7 @@ import { cn, Codicon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, Dropd
 import { AgentPanel } from './agent-panel'
 import { HermesChat } from './hermes-chat'
 import { SKINS } from './skins'
+import { Splitter, useSize } from './splitter'
 import {
   $activePanel,
   $hermesOpen,
@@ -10,13 +11,34 @@ import {
   $ideError,
   $layout,
   $panels,
+  $views,
   closePanel,
   openPanel,
   refresh
 } from './store'
 import { $repo } from './store'
 import { IdeTerminal } from './terminal'
+import { TuiPanel } from './tui-panel'
 import { AGENT_IDS, AGENT_LABEL, type AgentId } from './types'
+
+function Surface({ agent, id, visible }: { agent: AgentId; id: string; visible: boolean }) {
+  const views = useValue($views)
+  const view = views[id] ?? (agent === 'cursor' ? 'chat' : 'tui')
+
+  return view === 'chat' ? <AgentPanel agent={agent} id={id} visible={visible} /> : <TuiPanel agent={agent} id={id} visible={visible} />
+}
+
+function Slot({ children, id, last, visible }: { children: React.ReactNode; id: string; last: boolean; visible: boolean }) {
+  const [w, setW] = useSize(`slot.${id}`, 560, 280, 1800)
+  const split = useValue($layout) === 'split'
+
+  return (
+    <div className={cn('relative min-w-0', !visible && 'hidden', split && !last ? 'shrink-0 border-r border-(--ui-stroke-tertiary)' : 'flex-1')} style={split && !last ? { width: w } : undefined}>
+      {children}
+      {split && !last ? <Splitter edge="right" onResize={setW} size={w} /> : null}
+    </div>
+  )
+}
 
 function Dot({ agent }: { agent: AgentId }) {
   return <span className="size-2 shrink-0 rounded-full" style={{ background: SKINS[agent].accent }} />
@@ -117,18 +139,15 @@ export function IdePage() {
           {panels.length === 0 ? (
             <div className="grid h-full w-full place-items-center text-(--ui-text-tertiary)">Open a coding agent with + above.</div>
           ) : null}
-          {panels.map(p => {
+          {panels.map((p, i) => {
             const visible = shown.some(s => s.id === p.id)
             const isAgent = (AGENT_IDS as string[]).includes(p.kind)
+            const lastVisible = shown[shown.length - 1]?.id === p.id
 
             return (
-              <div className={cn('min-w-0 flex-1', !visible && 'hidden', layout === 'split' && 'border-r border-(--ui-stroke-tertiary) last:border-r-0')} key={p.id}>
-                {isAgent ? (
-                  <AgentPanel agent={p.kind as AgentId} id={p.id} visible={visible} />
-                ) : p.kind === 'terminal' ? (
-                  <IdeTerminal cwd={repo} visible={visible} />
-                ) : null}
-              </div>
+              <Slot id={p.id} key={p.id} last={lastVisible || i === panels.length - 1} visible={visible}>
+                {isAgent ? <Surface agent={p.kind as AgentId} id={p.id} visible={visible} /> : p.kind === 'terminal' ? <IdeTerminal cwd={repo} visible={visible} /> : null}
+              </Slot>
             )
           })}
         </div>

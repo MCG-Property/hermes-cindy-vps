@@ -93,14 +93,30 @@ def build_command(agent: str, prompt: str, *, repo: str, model: str = "", mode: 
     raise ValueError(agent)
 
 
-def extra_env(agent: str, full_auto: bool = False) -> Dict[str, str]:
+def interactive_command(agent: str, *, resume: bool = False) -> Optional[List[str]]:
+    """argv that starts the agent's own full-screen UI (what you get typing the command in a terminal)."""
+    exe = find_bin(agent)
+    if not exe:
+        return None
+    if agent == "claude":
+        return [exe] + (["--continue"] if resume else [])
+    if agent == "codex":
+        return [exe] + (["resume", "--last"] if resume else [])
+    if agent == "opencode":
+        return [exe] + (["--continue"] if resume else [])
+    if agent == "cursor":
+        return [exe] + (["resume"] if resume else [])
+    return None
+
+
+def extra_env(agent: str, full_auto: bool = False, interactive: bool = False) -> Dict[str, str]:
     """Environment overrides for a non-interactive run.
 
     OpenCode auto-rejects any access outside the project directory in ``run`` mode, which stalls agents whose global instructions live
     under ``~/.claude`` / ``~/.hermes`` (they never reach a final answer). Allow reads of those instruction homes; everything else
     outside the repo stays denied unless the user enabled full-auto.
     """
-    if agent == "opencode":
+    if agent == "opencode" and not interactive:
         rules = {"~/.claude/**": "allow", "~/.hermes/**": "allow", "~/.codex/**": "allow", "*": "allow" if full_auto else "deny"}
         return {"OPENCODE_CONFIG_CONTENT": json.dumps({"permission": {"external_directory": rules}})}
     return {}

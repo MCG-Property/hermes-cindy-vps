@@ -25,6 +25,24 @@ export const $panelChat = atom<Record<string, string>>({})
 /** UI actions requested by the Hermes chat (open a panel, focus a repo…) */
 export const $uiAction = atom<{ agent?: string; nonce: number; type: string } | null>(null)
 
+/** Persisted pane sizes (px) by key, e.g. `hermes` (chat width), `cursor.sessions`, `cursor.work`. */
+export const $sizes = atom<Record<string, number>>({})
+
+export interface TuiTab {
+  id: string
+  /** the live PTY on the box (re-attached after a reload) */
+  termId?: string
+  title: string
+  cwd?: string
+  /** start with the agent's own resume/continue flag when (re)creating the PTY */
+  resume?: boolean
+}
+
+/** Agent TUI tabs per panel id. */
+export const $tui = atom<Record<string, { active: string; tabs: TuiTab[] }>>({})
+/** Which face a panel shows: the agent's real terminal UI, our chat UI, or (OpenCode) its web UI. */
+export const $views = atom<Record<string, 'chat' | 'tui' | 'web'>>({})
+
 export const $chats = computed($ide, s => s?.chats ?? [])
 export const $repos = computed($ide, s => s?.repos ?? [])
 
@@ -41,6 +59,9 @@ export function bindStore(s: Storage): () => void {
     $layout.set(s.get(key('layout'), 'tabs'))
     $repo.set(s.get(key('repo'), null))
     $panelChat.set(s.get(key('chats'), {}))
+    $sizes.set(s.get(key('sizes'), {}))
+    $tui.set(s.get(key('tui'), {}))
+    $views.set(s.get(key('views'), {}))
     void refresh()
   }
 
@@ -53,7 +74,10 @@ export function bindStore(s: Storage): () => void {
     $hermesOpen.listen(v => s.set(key('hermes'), v)),
     $layout.listen(v => s.set(key('layout'), v)),
     $repo.listen(v => s.set(key('repo'), v)),
-    $panelChat.listen(v => s.set(key('chats'), v))
+    $panelChat.listen(v => s.set(key('chats'), v)),
+    $sizes.listen(v => s.set(key('sizes'), v)),
+    $tui.listen(v => s.set(key('tui'), v)),
+    $views.listen(v => s.set(key('views'), v))
   ]
 
   return () => {

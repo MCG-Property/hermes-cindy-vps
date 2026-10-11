@@ -5,13 +5,15 @@ import { ideApi } from './api'
 import { Composer } from './composer'
 import { ago, repoName } from './fold'
 import { SKINS } from './skins'
-import { $chats, $ide, $panelChat, $repo, $repos, refresh } from './store'
+import { Splitter, useSize } from './splitter'
+import { $chats, $ide, $panelChat, $repo, $repos, $views, refresh } from './store'
 import { Transcript } from './transcript'
 import type { AgentId, ChatLight } from './types'
 import { useSession } from './use-session'
+import { type View, ViewToggle } from './view-toggle'
 import { WorkPane } from './work-pane'
 
-function RepoPicker({ onAdd }: { onAdd: () => void }) {
+export function RepoPicker({ onAdd }: { onAdd: () => void }) {
   const repos = useValue($repos)
   const repo = useValue($repo)
 
@@ -87,7 +89,7 @@ function Sessions({ agent, activeId, onNew, onPick, onDelete }: { activeId: null
   const skin = SKINS[agent]
 
   return (
-    <div className="flex h-full w-56 shrink-0 flex-col border-r border-(--ui-stroke-tertiary)">
+    <div className="flex h-full w-full flex-col">
       <div className="p-2">
         <button className="flex h-8 w-full items-center gap-2 rounded-lg px-2 text-[0.84rem] text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={onNew} type="button">
           <Codicon name="add" size="0.9rem" />
@@ -131,6 +133,87 @@ function useWidth<T extends HTMLElement>(): [number, (el: null | T) => void] {
   return [w, set]
 }
 
+function CursorSidebar({ activeId, onDelete, onNew, onPick, onAddRepo }: { activeId: null | string; onAddRepo: () => void; onDelete: (c: ChatLight) => void; onNew: () => void; onPick: (c: ChatLight) => void }) {
+  const chats = useValue($chats)
+  const repos = useValue($repos)
+  const repo = useValue($repo)
+  const [q, setQ] = useState('')
+  const mine = chats.filter(c => c.agent === 'cursor' && (!q || c.title.toLowerCase().includes(q.toLowerCase())))
+  const pinned = mine.filter(c => c.pinned)
+  const accent = SKINS.cursor.accent
+
+  const row = (c: ChatLight) => (
+    <div
+      className={cn('group flex h-7 cursor-default items-center gap-2 rounded-lg px-2 text-[0.82rem] text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-foreground', activeId === c.id && 'bg-(--ui-bg-quaternary) text-foreground')}
+      key={c.id}
+      onClick={() => onPick(c)}
+    >
+      <span className="size-1.5 shrink-0 rounded-full" style={{ background: c.running ? '#e6b450' : c.unread ? '#4aa3ff' : 'var(--ui-text-tertiary)' }} />
+      <span className="flex-1 truncate">{c.title}</span>
+      <span className="text-[0.7rem] text-(--ui-text-tertiary) group-hover:hidden">{ago(c.updated)}</span>
+      <span className="hidden items-center gap-1 text-(--ui-text-tertiary) group-hover:flex">
+        <button className="hover:text-foreground" onClick={e => { e.stopPropagation(); void ideApi.patchChat(c.id, { pinned: !c.pinned }).then(() => refresh()) }} title={c.pinned ? 'Unpin' : 'Pin'} type="button">
+          <Codicon name={c.pinned ? 'pinned' : 'pin'} size="0.75rem" />
+        </button>
+        <button className="hover:text-red-400" onClick={e => { e.stopPropagation(); onDelete(c) }} title="Delete" type="button">
+          <Codicon name="trash" size="0.75rem" />
+        </button>
+      </span>
+    </div>
+  )
+
+  const nav = (icon: string, label: string, onClick?: () => void) => (
+    <button className="flex h-7 w-full items-center gap-2.5 rounded-lg px-2 text-left text-[0.84rem] text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={onClick} type="button">
+      <Codicon name={icon} size="0.9rem" />
+      {label}
+    </button>
+  )
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="space-y-px p-2">
+        {nav('filter', 'New Chat', onNew)}
+        <div className="flex h-7 items-center gap-2.5 rounded-lg px-2 text-(--ui-text-secondary)">
+          <Codicon name="search" size="0.9rem" />
+          <input className="min-w-0 flex-1 bg-transparent text-[0.84rem] outline-none placeholder:text-(--ui-text-secondary)" onChange={e => setQ(e.target.value)} placeholder="Search" value={q} />
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        {pinned.length ? (
+          <>
+            <div className="px-2 pt-3 pb-1 text-[0.72rem] text-(--ui-text-tertiary)">Pinned</div>
+            {pinned.map(row)}
+          </>
+        ) : null}
+        <div className="flex items-center justify-between px-2 pt-3 pb-1 text-[0.72rem] text-(--ui-text-tertiary)">
+          <span>Repositories</span>
+          <button className="grid size-5 place-items-center rounded hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={onAddRepo} title="Add repository" type="button">
+            <Codicon name="new-folder" size="0.8rem" />
+          </button>
+        </div>
+        {repos.map(r => {
+          const rc = mine.filter(c => c.repo === r.path && !c.pinned).sort((a, b) => b.updated - a.updated)
+
+          return (
+            <div key={r.path}>
+              <button
+                className={cn('flex h-7 w-full items-center gap-2 rounded-lg px-2 text-left text-[0.84rem] text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-foreground', repo === r.path && 'text-foreground')}
+                onClick={() => $repo.set(r.path)}
+                type="button"
+              >
+                <Codicon name={repo === r.path ? 'folder-opened' : 'folder'} size="0.9rem" style={repo === r.path ? { color: accent } : undefined} />
+                <span className="truncate">{r.name}</span>
+              </button>
+              {rc.length ? rc.map(row) : <div className="py-1 pl-8 text-[0.76rem] text-(--ui-text-tertiary)">No agents yet</div>}
+            </div>
+          )
+        })}
+        {!repos.length ? <div className="px-2 py-2 text-[0.78rem] text-(--ui-text-tertiary)">No repositories yet.</div> : null}
+      </div>
+    </div>
+  )
+}
+
 export function AgentPanel({ agent, id, visible }: { agent: AgentId; id: string; visible: boolean }) {
   const ide = useValue($ide)
   const repo = useValue($repo)
@@ -142,6 +225,9 @@ export function AgentPanel({ agent, id, visible }: { agent: AgentId; id: string;
   const [showSessions, setShowSessions] = useState(true)
   const [showWork, setShowWork] = useState(false)
   const [width, measure] = useWidth<HTMLDivElement>()
+  const [sideW, setSideW] = useSize(`${id}.sessions`, 232, 160, 460)
+  const [workW, setWorkW] = useSize(`${id}.work`, 440, 280, 900)
+  const views = useValue($views)
   const scroller = useRef<HTMLDivElement>(null)
   const skin = SKINS[agent]
   const status = ide?.agents.find(a => a.id === agent)
@@ -184,14 +270,27 @@ export function AgentPanel({ agent, id, visible }: { agent: AgentId; id: string;
 
   return (
     <div className={cn('relative flex h-full min-h-0 w-full overflow-hidden', !visible && 'hidden')} ref={measure} style={{ ['--ide-accent' as string]: skin.accent }}>
-      {showSessions && width >= 640 ? (
-        <Sessions
-          activeId={chatId}
-          agent={agent}
-          onDelete={c => void ideApi.deleteChat(c.id).then(() => { if (c.id === chatId) {newSession();} void refresh() })}
-          onNew={newSession}
-          onPick={c => $panelChat.set({ ...$panelChat.get(), [id]: c.id })}
-        />
+      {showSessions && width >= 480 ? (
+        <div className="relative h-full shrink-0 border-r border-(--ui-stroke-tertiary)" style={{ width: sideW }}>
+          {cursorLayout ? (
+            <CursorSidebar
+              activeId={chatId}
+              onAddRepo={() => setAddRepo(true)}
+              onDelete={c => void ideApi.deleteChat(c.id).then(() => { if (c.id === chatId) {newSession();} void refresh() })}
+              onNew={newSession}
+              onPick={c => $panelChat.set({ ...$panelChat.get(), [id]: c.id })}
+            />
+          ) : (
+            <Sessions
+              activeId={chatId}
+              agent={agent}
+              onDelete={c => void ideApi.deleteChat(c.id).then(() => { if (c.id === chatId) {newSession();} void refresh() })}
+              onNew={newSession}
+              onPick={c => $panelChat.set({ ...$panelChat.get(), [id]: c.id })}
+            />
+          )}
+          <Splitter edge="right" onResize={setSideW} size={sideW} />
+        </div>
       ) : null}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex h-10 shrink-0 items-center gap-2 px-3">
@@ -205,6 +304,7 @@ export function AgentPanel({ agent, id, visible }: { agent: AgentId; id: string;
           ) : null}
           <span className="truncate text-[0.82rem] text-(--ui-text-secondary)">{title}</span>
           <span className="flex-1" />
+          <ViewToggle onChange={(v: View) => $views.set({ ...$views.get(), [id]: v })} options={['chat', 'tui']} value={views[id] ?? 'chat'} />
           <RepoPicker onAdd={() => setAddRepo(true)} />
           {cursorLayout ? (
             <button className={cn('grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)', showWork && 'bg-(--ui-bg-quaternary)')} onClick={() => setShowWork(w => !w)} title="Browser, terminal, files and changes" type="button">
@@ -272,7 +372,8 @@ export function AgentPanel({ agent, id, visible }: { agent: AgentId; id: string;
         )}
       </div>
       {cursorLayout && (showWork || browserUrl) && width >= 760 ? (
-        <div className="w-[40%] min-w-[300px] max-w-[560px] shrink-0">
+        <div className="relative h-full shrink-0" style={{ width: workW }}>
+          <Splitter edge="left" onResize={setWorkW} size={workW} />
           <WorkPane browserUrl={browserUrl} onBrowserUrl={setBrowserUrl} repo={repo} />
         </div>
       ) : null}
