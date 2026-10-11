@@ -31,7 +31,8 @@ AGENT_META: Dict[str, Dict[str, Any]] = {
 
 
 def search_path() -> str:
-    extra = [str(Path.home() / ".local/bin"), str(Path.home() / ".hermes/node/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
+    home = Path.home()
+    extra = [str(home / d) for d in (".local/bin", ".opencode/bin", ".cursor/bin", ".bun/bin", ".npm-global/bin", ".hermes/node/bin")] + ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
     return os.pathsep.join(extra + [os.environ.get("PATH", "")])
 
 
