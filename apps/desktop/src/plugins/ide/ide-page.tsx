@@ -2,8 +2,11 @@ import { cn, Codicon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, Dropd
 import { useEffect, useState } from 'react'
 
 import { ideApi } from './api'
+import { ClaudeApp } from './claude-app'
+import { CodexApp } from './codex-app'
 import { DesktopApp } from './desktop-app'
 import { HermesChat } from './hermes-chat'
+import { OpenCodeApp } from './opencode-app'
 import { SKINS } from './skins'
 import { Splitter, useSize } from './splitter'
 import {
@@ -46,8 +49,28 @@ function OpenCodeWeb({ visible }: { visible: boolean }) {
 function Surface({ agent, id, visible }: { agent: AgentId; id: string; visible: boolean }) {
   const local = (host.state.connectionId.get() ?? 'local') === 'local'
 
-  if (agent === 'opencode' && local) {
+  const clone = (() => {
+    try {
+      return window.localStorage.getItem('ide.opencode.clone') === '1'
+    } catch {
+      return false
+    }
+  })()
+
+  if (agent === 'opencode' && local && !clone) {
     return <OpenCodeWeb visible={visible} />
+  }
+
+  if (agent === 'claude') {
+    return <ClaudeApp id={id} visible={visible} />
+  }
+
+  if (agent === 'codex') {
+    return <CodexApp id={id} visible={visible} />
+  }
+
+  if (agent === 'opencode') {
+    return <OpenCodeApp id={id} visible={visible} />
   }
 
   return <DesktopApp agent={agent} id={id} visible={visible} />

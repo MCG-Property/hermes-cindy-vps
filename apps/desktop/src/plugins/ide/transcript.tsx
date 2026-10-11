@@ -118,7 +118,7 @@ function ClaudeDesktopTurn({ busy, onApply, onLink, skin, turn }: { busy: boolea
 
   if (turn.role === 'user') {
     return (
-      <div className="my-5 ml-auto w-fit max-w-[88%] rounded-2xl bg-(--ui-bg-quaternary) px-4 py-2.5 text-[0.92rem] leading-relaxed whitespace-pre-wrap select-text">
+      <div className="my-5 w-fit max-w-[92%] rounded-2xl bg-[#262626] px-4 py-2.5 text-[0.92rem] leading-relaxed whitespace-pre-wrap select-text">
         {turn.attachments?.length ? <div className="mb-1.5 flex flex-wrap gap-1">{turn.attachments.map(a => <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[0.72rem]" key={a}>{a}</span>)}</div> : null}
         {turn.text}
       </div>
@@ -126,43 +126,31 @@ function ClaudeDesktopTurn({ busy, onApply, onLink, skin, turn }: { busy: boolea
   }
 
   return (
-    <div className="my-3 flex gap-3">
-      <span className="mt-1 select-none text-[1.15rem] leading-none" style={{ color: skin.accent }}>
-        ✻
-      </span>
-      <div className="min-w-0 flex-1">
-        {turn.thinking ? (
-          <div className="mb-1 text-[0.82rem] text-(--ui-text-tertiary) italic">{busy && !turn.text ? 'Thinking…' : 'Thought'}</div>
-        ) : null}
-        {(turn.steps ?? []).map(s => (
-          <div className="my-1" key={s.id}>
-            <button className="flex w-full items-center gap-2 rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-widget-surface-background) px-2.5 py-1.5 text-left text-[0.8rem] hover:bg-(--chrome-action-hover)" onClick={() => setOpen(o => ({ ...o, [s.id]: !o[s.id] }))} type="button">
-              <Codicon name={STEP_ICON[s.kind ?? 'other'] ?? 'tools'} size="0.85rem" style={{ color: s.result === undefined ? skin.accent : s.ok === false ? skin.err : undefined }} />
-              <span className="font-medium">{verb(s)}</span>
-              <span className="min-w-0 flex-1 truncate font-mono text-[0.74rem] text-(--ui-text-tertiary)">{firstLine(s.arg, 90)}</span>
-              {s.result === undefined ? <span className="size-3 animate-spin rounded-full border-2 border-current border-r-transparent text-(--ui-text-tertiary)" /> : <Codicon name={open[s.id] ? 'chevron-up' : 'chevron-down'} size="0.75rem" />}
-            </button>
-            {open[s.id] && s.result ? <pre className="mx-1 mt-1 max-h-48 overflow-auto rounded-lg bg-(--ui-widget-surface-background) p-2.5 font-mono text-[0.72rem] whitespace-pre-wrap text-(--ui-text-secondary)">{s.result}</pre> : null}
-          </div>
-        ))}
-        {turn.text ? (
-          <div className="text-[0.98rem] leading-[1.7]" style={{ fontFamily: 'ui-serif, "Tiempos Text", Georgia, serif' }}>
-            <Body onApply={onApply} onLink={onLink} text={turn.text} />
-          </div>
-        ) : null}
-        {turn.error ? <div className="my-1 text-(--ui-error,#ff6b80)">{turn.error}</div> : null}
-        {busy ? (
-          <div className="mt-1 flex items-center gap-2 text-[0.84rem]" style={{ color: skin.accent }}>
-            <span className="animate-pulse">✻</span>
-            <span>Thinking…</span>
-          </div>
-        ) : turn.text ? (
-          <div className="mt-1 flex items-center gap-1 text-(--ui-text-tertiary)">
-            <CopyButton className="size-6" text={turn.text} />
-            <span className="ml-1 text-[0.74rem]">{turn.worked ? `Worked for ${dur(Math.max(1, turn.worked))}` : ''}</span>
-          </div>
-        ) : null}
-      </div>
+    <div className="my-4 min-w-0">
+      {turn.thinking ? <div className="mb-1 text-[0.82rem] text-(--ui-text-tertiary) italic">{busy && !turn.text ? 'Thinking…' : 'Thought'}</div> : null}
+      {(turn.steps ?? []).map(s => (
+        <div className="my-1" key={s.id}>
+          <button className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-left text-[0.8rem] hover:bg-white/[0.06]" onClick={() => setOpen(o => ({ ...o, [s.id]: !o[s.id] }))} type="button">
+            <Codicon name={STEP_ICON[s.kind ?? 'other'] ?? 'tools'} size="0.85rem" style={{ color: s.result === undefined ? skin.accent : s.ok === false ? skin.err : undefined }} />
+            <span className="font-medium">{verb(s)}</span>
+            <span className="min-w-0 flex-1 truncate font-mono text-[0.74rem] text-(--ui-text-tertiary)">{firstLine(s.arg, 90)}</span>
+            {s.result === undefined ? <span className="size-3 animate-spin rounded-full border-2 border-current border-r-transparent text-(--ui-text-tertiary)" /> : <Codicon name={open[s.id] ? 'chevron-up' : 'chevron-down'} size="0.75rem" />}
+          </button>
+          {open[s.id] && s.result ? <pre className="mx-1 mt-1 max-h-48 overflow-auto rounded-lg bg-white/[0.04] p-2.5 font-mono text-[0.72rem] whitespace-pre-wrap text-(--ui-text-secondary)">{s.result}</pre> : null}
+        </div>
+      ))}
+      {turn.text ? (
+        <div className="text-[0.95rem] leading-[1.7]">
+          <Body onApply={onApply} onLink={onLink} text={turn.text} />
+        </div>
+      ) : null}
+      {turn.error ? <div className="my-1 text-(--ui-error,#ff6b80)">{turn.error}</div> : null}
+      {busy ? (
+        <div className="mt-1 flex items-center gap-2 text-[0.86rem]" style={{ color: skin.accent }}>
+          <span className="animate-pulse">✻</span>
+          <span>Thinking…</span>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -15,7 +15,7 @@ import { useSession } from './use-session'
 import { BrowserTab, ChangesTab, FilesTab } from './work-pane'
 
 type Page = 'automations' | 'chat' | 'customize'
-interface PaneTab {
+export interface PaneTab {
   id: string
   kind: PaneKind
   termId?: string
@@ -23,16 +23,16 @@ interface PaneTab {
   url?: string
 }
 
-const uid = () => Math.random().toString(36).slice(2, 8)
+export const uid = () => Math.random().toString(36).slice(2, 8)
 const PANE_ICON: Record<PaneKind, string> = { browser: 'globe', changes: 'git-compare', files: 'file', terminal: 'terminal' }
 
-function connectionLabel(): string {
+export function connectionLabel(): string {
   const c = host.state.connectionId.get()
 
   return !c || c === 'local' ? 'This Mac' : String(c)
 }
 
-function SidebarRow({ active, children, icon, onClick, right }: { active?: boolean; children: React.ReactNode; icon?: string; onClick?: () => void; right?: React.ReactNode }) {
+export function SidebarRow({ active, children, icon, onClick, right }: { active?: boolean; children: React.ReactNode; icon?: string; onClick?: () => void; right?: React.ReactNode }) {
   return (
     <div
       className={cn('group flex h-7 cursor-default items-center gap-2.5 rounded-lg px-2 text-[0.84rem] text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-foreground', active && 'bg-(--ui-bg-quaternary) text-foreground')}
@@ -254,7 +254,7 @@ function Sidebar({
   )
 }
 
-function RightPane({ browserUrl, onBrowserUrl, repo, skin, tabs, setTabs, active, setActive }: { active: string; browserUrl: string; onBrowserUrl: (u: string) => void; repo: null | string; setActive: (id: string) => void; setTabs: (t: PaneTab[]) => void; skin: AppSkin; tabs: PaneTab[] }) {
+export function RightPane({ browserUrl, onBrowserUrl, repo, skin, tabs, setTabs, active, setActive }: { active: string; browserUrl: string; onBrowserUrl: (u: string) => void; repo: null | string; setActive: (id: string) => void; setTabs: (t: PaneTab[]) => void; skin: AppSkin; tabs: PaneTab[] }) {
   const add = (kind: PaneKind, extra: Partial<PaneTab> = {}) => {
     const t: PaneTab = { id: uid(), kind, title: kind === 'terminal' ? 'zsh' : skin.paneLabels[kind], ...extra }
     setTabs([...tabs, t])
@@ -353,7 +353,7 @@ function RightPane({ browserUrl, onBrowserUrl, repo, skin, tabs, setTabs, active
   )
 }
 
-function AutomationsPage({ automations, repos }: { automations: Automation[]; repos: { name: string; path: string }[] }) {
+export function AutomationsPage({ automations, repos }: { automations: Automation[]; repos: { name: string; path: string }[] }) {
   const [name, setName] = useState('')
   const [prompt, setPrompt] = useState('')
   const [repo, setRepo] = useState(repos[0]?.path ?? '')
@@ -408,7 +408,7 @@ function AutomationsPage({ automations, repos }: { automations: Automation[]; re
   )
 }
 
-function CustomizePage() {
+export function CustomizePage() {
   const ide = useValue($ide)
   const [full, setFull] = useState(!!ide?.settings.fullAuto)
   const agents = ide?.agents ?? []
