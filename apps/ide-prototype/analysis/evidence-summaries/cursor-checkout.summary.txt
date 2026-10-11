@@ -1,0 +1,24 @@
+evidence_id: ev_18fcf6acc5163011f0846191ca6ffd72e23e52b0f3fb77767fc8fa2167293b4d
+subject:
+  name: cursor-checkout
+  digest:
+    sha256: f554720f0cce6160f1d149466fd0f467b48a9aaf7d30f7f9fc1c5836c2df730f
+  format: directory
+  architecture: null
+  local_path: /Applications/Cursor.app/Contents/Resources/app/extensions/cursor-checkout
+provider:
+  id: rea-analysis-view
+  name: REA analysis view projection
+  version: "1"
+analysis_profile: null
+predicate_type: rea.analysis-view
+operation: inspect_analysis_view
+parameters:
+  parent_evidence_id: ev_01067d80adadb21ff3b748959a484d292ab8da43a6dd5394b862f522f6493567
+  view:
+    kind: summary
+raw_result: null
+normalized_result:
+  kind: summary
+  view:
+    k

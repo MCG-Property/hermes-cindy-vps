@@ -1,0 +1,333 @@
+{
+ "cursor-agent-exec": {
+  "displayName": null,
+  "activation": [
+   "*"
+  ],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-agent-host": {
+  "displayName": null,
+  "activation": [
+   "*"
+  ],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [
+   "cursorAgentHost.experimentalHostOwnedSessionStorage",
+   "cursorAgentHost.remoteInferenceRoute"
+  ],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-agent-worker": {
+  "displayName": null,
+  "activation": [
+   "onStartupFinished"
+  ],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-always-local": {
+  "displayName": null,
+  "activation": [
+   "onStartupFinished",
+   "onResolveRemoteAuthority:background-composer"
+  ],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": [],
+  "configuration": [],
+  "menus": [
+   "scm/inputBox"
+  ],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-browser-automation": {
+  "displayName": "Cursor Browser Automation",
+  "activation": [
+   "onStartupFinished"
+  ],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-checkout": {
+  "displayName": null,
+  "activation": [
+   "*"
+  ],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-commits": {
+  "displayName": null,
+  "activation": [
+   "onStartupFinished"
+  ],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": [],
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-computer-use": {
+  "displayName": "Cursor Computer Use",
+  "activation": [
+   "onStartupFinished"
+  ],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-deeplink": {
+  "displayName": "Cursor",
+  "activation": [
+   "onStartupFinished",
+   "onUri"
+  ],
+  "commands": [
+   "cursor-deeplink.debug.triggerDeeplink"
+  ],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-explorer": {
+  "displayName": "Cursor Explorer",
+  "activation": [
+   "onStartupFinished"
+  ],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-file-service": {
+  "displayName": null,
+  "activation": [],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-local-agent-runtime": {
+  "displayName": null,
+  "activation": [
+   "*"
+  ],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-mcp": {
+  "displayName": null,
+  "activation": [
+   "onStartupFinished",
+   "onUri"
+  ],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": [],
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-ndjson-ingest": {
+  "displayName": "Cursor NDJSON Ingest",
+  "activation": [
+   "onCommand:cursor.ndjsonIngest.start",
+   "onCommand:cursor.ndjsonIngest.reassignPort"
+  ],
+  "commands": [
+   "cursor.ndjsonIngest.start",
+   "cursor.ndjsonIngest.stop",
+   "cursor.ndjsonIngest.copyCurl",
+   "cursor.ndjsonIngest.reassignPort",
+   "cursor.ndjsonIngest.showStatus"
+  ],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [
+   "ndjson.port",
+   "ndjson.bindAddress"
+  ],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-polyfills-remote": {
+  "displayName": null,
+  "activation": [
+   "*"
+  ],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-resolver": {
+  "displayName": null,
+  "activation": [
+   "onResolveRemoteAuthority:background-composer"
+  ],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-resolver-helper": {
+  "displayName": null,
+  "activation": [
+   "onResolveRemoteAuthority:background-composer",
+   "onStartupFinished"
+  ],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-retrieval": {
+  "displayName": null,
+  "activation": [
+   "onStartupFinished"
+  ],
+  "commands": [
+   "cursor.grepClient.debug",
+   "cursor.codebaseTelemetry.triggerSnapshot"
+  ],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": [],
+  "configuration": [
+   "cursor-retrieval.canAttemptGithubLogin"
+  ],
+  "menus": [
+   "commandPalette"
+  ],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-shadow-workspace": {
+  "displayName": "%displayName%",
+  "activation": [
+   "onStartupFinished"
+  ],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-socket": {
+  "displayName": null,
+  "activation": [
+   "onResolveRemoteAuthority:background-composer",
+   "onStartupFinished"
+  ],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "cursor-worktree-textmate": {
+  "displayName": "Worktree TextMate Syntax",
+  "activation": [],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ },
+ "theme-cursor": {
+  "displayName": "cursor-themes",
+  "activation": [],
+  "commands": [],
+  "views": null,
+  "viewsContainers": null,
+  "keybindings": null,
+  "configuration": [],
+  "menus": [],
+  "languageModelTools": 0,
+  "mcp": null
+ }
+}

@@ -1,0 +1,23 @@
+evidence_id: ev_dd6965e2f3cf20bc6eea3eb1c8315cf0199985c1a6beb608ab36da4610fcd7f5
+subject:
+  name: cursor-always-local
+  digest:
+    sha256: 54ed4883604780b23b4b9768c6e45460a5043500917f49acd6a0ed11e4ddac11
+  format: directory
+  architecture: null
+  local_path: /Applications/Cursor.app/Contents/Resources/app/extensions/cursor-always-local
+provider:
+  id: rea-analysis-view
+  name: REA analysis view projection
+  version: "1"
+analysis_profile: null
+predicate_type: rea.analysis-view
+operation: inspect_analysis_view
+parameters:
+  parent_evidence_id: ev_f7085c4b667b5cf0d8b86064f3e739667f692d514e405c274740077c8ed471de
+  view:
+    kind: summary
+raw_result: null
+normalized_result:
+  kind: summary
+  vie

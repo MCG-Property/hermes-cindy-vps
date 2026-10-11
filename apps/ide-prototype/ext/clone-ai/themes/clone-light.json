@@ -1,0 +1,15 @@
+{
+  "name": "Clone Light", "type": "light",
+  "colors": {
+    "editor.background": "#fcfcfc", "editor.foreground": "#141414",
+    "sideBar.background": "#f3f3f3", "activityBar.background": "#f3f3f3", "titleBar.activeBackground": "#f3f3f3", "statusBar.background": "#f3f3f3", "panel.background": "#f3f3f3",
+    "tab.activeBackground": "#fcfcfc", "tab.inactiveBackground": "#f3f3f3", "editorGroupHeader.tabsBackground": "#f3f3f3",
+    "button.background": "#2778c1", "button.foreground": "#ffffff", "focusBorder": "#2778c188", "textLink.foreground": "#0064b0",
+    "list.activeSelectionBackground": "#14141414", "input.background": "#ffffff"
+  },
+  "tokenColors": [
+    { "scope": ["comment"], "settings": { "foreground": "#8a8f98", "fontStyle": "italic" } },
+    { "scope": ["string"], "settings": { "foreground": "#3f7d3a" } },
+    { "scope": ["keyword", "storage"], "settings": { "foreground": "#2a5da8" } }
+  ]
+}
