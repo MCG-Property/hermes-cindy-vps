@@ -13,6 +13,7 @@ interface Props {
   busy: boolean
   onApply?: (code: string) => void
   onLink?: (u: string) => void
+  onFork?: () => void
   cwd?: null | string
 }
 
@@ -45,12 +46,28 @@ function Body({ onApply, onLink, text }: { onApply?: (c: string) => void; onLink
 
 // ---------- Cursor skin: bubbles + collapsible “Worked for” ----------
 
-function CursorTurn({ busy, onApply, onLink, turn }: { busy: boolean; onApply?: (c: string) => void; onLink?: (u: string) => void; turn: Turn }) {
+function CursorUser({ turn }: { turn: Turn }) {
+  const [open, setOpen] = useState(false)
+  const long = (turn.text ?? '').length > 320
+
+  return (
+    <div className={cn('group relative my-5 cursor-default rounded-2xl bg-(--ui-bg-quaternary) px-4 py-3 text-[0.9rem] leading-relaxed whitespace-pre-wrap select-text', long && !open && 'max-h-40 overflow-hidden')} onClick={() => long && setOpen(o => !o)}>
+      {turn.attachments?.length ? <div className="mb-2 flex flex-wrap gap-1">{turn.attachments.map(a => <span className="rounded-full bg-white/10 px-2 py-0.5 text-[0.72rem] text-(--ui-text-secondary)" key={a}>{a}</span>)}</div> : null}
+      {turn.text}
+      {long && !open ? <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-(--ui-bg-quaternary) to-transparent" /> : null}
+      <span className="absolute right-3 bottom-2 hidden text-(--ui-text-tertiary) group-hover:block" title="Revert to this message">
+        <Codicon name="discard" size="0.85rem" />
+      </span>
+    </div>
+  )
+}
+
+function CursorTurn({ busy, onApply, onFork, onLink, turn }: { busy: boolean; onApply?: (c: string) => void; onFork?: () => void; onLink?: (u: string) => void; turn: Turn }) {
   const [open, setOpen] = useState(false)
   const steps = turn.steps ?? []
 
   if (turn.role === 'user') {
-    return <div className="my-4 whitespace-pre-wrap rounded-2xl bg-(--ui-bg-quaternary) px-4 py-3 text-[0.9rem] leading-relaxed select-text">{turn.text}</div>
+    return <CursorUser turn={turn} />
   }
 
   return (
@@ -74,9 +91,18 @@ function CursorTurn({ busy, onApply, onLink, turn }: { busy: boolean; onApply?: 
       {turn.text ? <Body onApply={onApply} onLink={onLink} text={turn.text} /> : null}
       {turn.error ? <div className="my-1 text-(--ui-error,#ff4f5f)">{turn.error}</div> : null}
       {!busy && turn.text ? (
-        <div className="mt-1 flex items-center gap-1 text-(--ui-text-tertiary)">
-          <CopyButton className="size-6" text={turn.text} />
-          <span className="ml-1 text-[0.8rem]">{ago(turn.ts)} ago</span>
+        <div className="mt-1 flex items-center gap-0.5 text-(--ui-text-tertiary)">
+          <button className="grid size-7 place-items-center rounded-md hover:bg-(--chrome-action-hover) hover:text-foreground" title="Good response" type="button">
+            <Codicon name="thumbsup" size="0.85rem" />
+          </button>
+          <button className="grid size-7 place-items-center rounded-md hover:bg-(--chrome-action-hover) hover:text-foreground" title="Bad response" type="button">
+            <Codicon name="thumbsdown" size="0.85rem" />
+          </button>
+          <CopyButton className="size-7" text={turn.text} />
+          <button className="grid size-7 place-items-center rounded-md hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={onFork} title="Fork into a new chat" type="button">
+            <Codicon name="repo-forked" size="0.85rem" />
+          </button>
+          <span className="ml-2 text-[0.8rem]">{ago(turn.ts)} ago</span>
         </div>
       ) : null}
     </div>
@@ -201,7 +227,7 @@ function HermesTurn({ busy, onLink, turn }: { busy: boolean; onLink?: (u: string
   )
 }
 
-export function Transcript({ agent, busy, live, onApply, onLink, turns }: Props) {
+export function Transcript({ agent, busy, live, onApply, onFork, onLink, turns }: Props) {
   const all = live ? [...turns, live] : turns
   const skin = agent === 'hermes' ? null : SKINS[agent]
 
@@ -216,7 +242,7 @@ export function Transcript({ agent, busy, live, onApply, onLink, turns }: Props)
         }
 
         if (agent === 'cursor') {
-          return <CursorTurn busy={isLive && busy} key={k} onApply={onApply} onLink={onLink} turn={t} />
+          return <CursorTurn busy={isLive && busy} key={k} onApply={onApply} onFork={onFork} onLink={onLink} turn={t} />
         }
 
         if (agent === 'opencode') {

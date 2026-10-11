@@ -118,7 +118,7 @@ function Sessions({ agent, activeId, onNew, onPick, onDelete }: { activeId: null
   )
 }
 
-function useWidth<T extends HTMLElement>(): [number, (el: null | T) => void] {
+export function useWidth<T extends HTMLElement>(): [number, (el: null | T) => void] {
   const [w, setW] = useState(1200)
   const [obs] = useState(() => new ResizeObserver(es => setW(es[0]?.contentRect.width ?? 1200)))
 
