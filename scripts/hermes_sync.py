@@ -66,6 +66,8 @@ DEFAULT_CHURN = [
     "profiles/*/whatsapp/*", "profiles/*/*.db*", "profiles/*/gateway_state.json", "profiles/*/.hermes_history",
     "profiles/*/locks/*", "profiles/*/hook_outputs/*", "continuous-learning/*", "sync-status.json",
     "SYNC-NEEDS-ATTENTION.md", "*.bak", "interrupt_debug.log", "gateway.lock",
+    "cron/output/*", "profiles/*/cron/output/*", "platforms/*/session/*", "profiles/*/platforms/*/session/*",
+    "state/*", "profiles/*/state/*", "*/update_receipts/*", "tmp/*", "profiles/*/tmp/*",
 ]
 SECRET_RES = [re.compile(p) for p in (
     r"sk-[A-Za-z0-9_-]{24,}", r"ghp_[A-Za-z0-9]{30,}", r"github_pat_[A-Za-z0-9_]{30,}", r"AKIA[0-9A-Z]{16}",
