@@ -15,8 +15,10 @@ For each configured repo, one run does, in order:
 3. **Push** the live branch to ``<remote> main`` (no force). If the remote moved, merge it first.
 4. **Restart** services / rebuild the Desktop app when the pull changed code, only while the gateway is idle.
 
-The live checkout deliberately stays on a non-``main`` branch: Hermes' native updater hard-resets ``main``
-to upstream, which would drop the carried fork. Everything is pushed to the remote ``main`` regardless.
+Remote layout is the canonical fork layout: ``origin`` = this box's public repo, ``upstream`` =
+NousResearch/hermes-agent, live checkout on ``main`` tracking ``origin/main``. In that layout Hermes' native
+``hermes update`` only fast-forwards ``origin`` and never resets the carried fork. A checkout whose
+``origin`` still points at NousResearch must not sit on ``main`` (the native updater would hard-reset it).
 """
 
 from __future__ import annotations
@@ -766,9 +768,10 @@ def sync_repo(cfg: dict[str, Any], repo_cfg: dict[str, Any], trigger: str, force
             return result
         branch = git.branch()
         if branch != repo_cfg["branch"]:
-            if branch == "main" and repo_cfg["kind"] == "agent":
-                flag(name, f"live checkout is on '{branch}'; expected '{repo_cfg['branch']}' (native `hermes update` "
-                           "hard-resets main and would drop the fork)", cfg=cfg)
+            if repo_cfg["kind"] == "agent":
+                flag(name, f"live checkout is on '{branch}'; expected '{repo_cfg['branch']}' (the sync only manages the "
+                           "configured branch; native `hermes update` hard-resets main when origin is NousResearch)",
+                     cfg=cfg)
             result["result"] = f"wrong-branch:{branch}"
             return result
         if dry_run:

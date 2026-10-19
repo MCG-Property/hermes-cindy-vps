@@ -23,4 +23,6 @@ State: `$HERMES_HOME/sync-status.json`; `$HERMES_HOME/SYNC-NEEDS-ATTENTION.md` e
 4. **restart** services / rebuild the Desktop app only after code changed and only while the gateway is idle
    (rolls back to the tag if the services come back unhealthy).
 
-The live checkout must stay on its configured non-`main` branch: Hermes' native updater hard-resets `main`.
+Remote layout (all boxes): `origin` = the box's public repo, `upstream` = NousResearch/hermes-agent, live checkout on `main`
+tracking `origin/main`; only `main` exists locally and remotely. In this fork layout the native `hermes update` just
+fast-forwards `origin` and never resets the carried fork.
