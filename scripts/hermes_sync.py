@@ -627,6 +627,9 @@ def push_step(git: Git, repo_cfg: dict[str, Any], cfg: dict[str, Any]) -> str:
     if remote_sha and git.is_ancestor(head, remote_sha):
         return "up-to-date"
     rc, out, err = git.run("push", "-q", remote, f"HEAD:refs/heads/{ref}", timeout=900)
+    if rc != 0:  # transient auth/network blips happen (credential helper, GitHub 5xx): retry once
+        time.sleep(8)
+        rc, out, err = git.run("push", "-q", remote, f"HEAD:refs/heads/{ref}", timeout=900)
     if rc != 0:
         log(f"[{name}] push failed: {err.strip()[:300]}")
         set_status(name, last_push_error=err.strip()[:300])
