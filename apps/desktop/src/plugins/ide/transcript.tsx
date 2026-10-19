@@ -1,4 +1,4 @@
-import { cn, Codicon, CopyButton } from '@hermes/plugin-sdk'
+import { cn, Codicon, CopyButton, Tip } from '@hermes/plugin-sdk'
 import { useState } from 'react'
 
 import { ago, dur } from './fold'
@@ -92,16 +92,16 @@ function CursorTurn({ busy, onApply, onFork, onLink, turn }: { busy: boolean; on
       {turn.error ? <div className="my-1 text-(--ui-error,#ff4f5f)">{turn.error}</div> : null}
       {!busy && turn.text ? (
         <div className="mt-1 flex items-center gap-0.5 text-(--ui-text-tertiary)">
-          <button aria-label="Good response" className="grid size-7 place-items-center rounded-md hover:bg-(--chrome-action-hover) hover:text-foreground" type="button">
+          <Tip label="Good response"><button aria-label="Good response" className="grid size-7 place-items-center rounded-md hover:bg-(--chrome-action-hover) hover:text-foreground" type="button">
             <Codicon name="thumbsup" size="0.85rem" />
-          </button>
-          <button aria-label="Bad response" className="grid size-7 place-items-center rounded-md hover:bg-(--chrome-action-hover) hover:text-foreground" type="button">
+          </button></Tip>
+          <Tip label="Bad response"><button aria-label="Bad response" className="grid size-7 place-items-center rounded-md hover:bg-(--chrome-action-hover) hover:text-foreground" type="button">
             <Codicon name="thumbsdown" size="0.85rem" />
-          </button>
+          </button></Tip>
           <CopyButton className="size-7" text={turn.text} />
-          <button aria-label="Fork into a new chat" className="grid size-7 place-items-center rounded-md hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={onFork} type="button">
+          <Tip label="Fork into a new chat"><button aria-label="Fork into a new chat" className="grid size-7 place-items-center rounded-md hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={onFork} type="button">
             <Codicon name="repo-forked" size="0.85rem" />
-          </button>
+          </button></Tip>
           <span className="ml-2 text-[0.8rem]">{ago(turn.ts)} ago</span>
         </div>
       ) : null}

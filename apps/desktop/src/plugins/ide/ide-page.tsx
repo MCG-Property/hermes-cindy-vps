@@ -1,4 +1,4 @@
-import { cn, Codicon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, host, useValue } from '@hermes/plugin-sdk'
+import { cn, Codicon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, host, Tip, useValue } from '@hermes/plugin-sdk'
 import { useEffect, useState } from 'react'
 
 import { ideApi } from './api'
@@ -143,9 +143,9 @@ export function IdePage() {
         })}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button aria-label="Open a coding-agent panel" className="grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-foreground" type="button">
+            <Tip label="Open a coding-agent panel"><button aria-label="Open a coding-agent panel" className="grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-foreground" type="button">
               <Codicon name="add" size="0.9rem" />
-            </button>
+            </button></Tip>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             {AGENT_IDS.map(a => (
@@ -163,7 +163,7 @@ export function IdePage() {
           </DropdownMenuContent>
         </DropdownMenu>
         <span className="flex-1" />
-        <button
+        <Tip label="Show open panels side by side"><button
           aria-label="Show open panels side by side"
           className={cn('flex h-7 items-center gap-1.5 rounded-lg px-2 text-[0.78rem] text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)', layout === 'split' && 'bg-(--ui-bg-quaternary)')}
           onClick={() => $layout.set(layout === 'split' ? 'tabs' : 'split')}
@@ -171,8 +171,8 @@ export function IdePage() {
         >
           <Codicon name="split-horizontal" size="0.85rem" />
           Split
-        </button>
-        <button
+        </button></Tip>
+        <Tip label="Hermes chat"><button
           aria-label="Hermes chat"
           className={cn('flex h-7 items-center gap-1.5 rounded-lg px-2 text-[0.78rem] text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)', hermes && 'bg-(--ui-bg-quaternary) text-foreground')}
           onClick={() => $hermesOpen.set(!hermes)}
@@ -180,7 +180,7 @@ export function IdePage() {
         >
           <Codicon name="sparkle" size="0.85rem" />
           Hermes
-        </button>
+        </button></Tip>
       </div>
       <div className="flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1">

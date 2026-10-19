@@ -1,4 +1,4 @@
-import { cn, Codicon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@hermes/plugin-sdk'
+import { cn, Codicon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, Tip } from '@hermes/plugin-sdk'
 import { useEffect, useRef, useState } from 'react'
 
 import { ideApi } from './api'
@@ -180,9 +180,9 @@ export function CursorComposer(p: Props) {
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button aria-label="Add context" className="grid size-7 shrink-0 place-items-center rounded-full bg-white/10 text-(--ui-text-secondary) hover:bg-white/15 hover:text-foreground" type="button">
+              <Tip label="Add context"><button aria-label="Add context" className="grid size-7 shrink-0 place-items-center rounded-full bg-white/10 text-(--ui-text-secondary) hover:bg-white/15 hover:text-foreground" type="button">
                 <Codicon name="add" size="0.9rem" />
-              </button>
+              </button></Tip>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
               <DropdownMenuItem onSelect={() => void openPicker()}>
@@ -242,7 +242,7 @@ export function CursorComposer(p: Props) {
               {!p.models.length ? <div className="px-2 py-1.5 text-[0.74rem] text-(--ui-text-tertiary)">Sign in to Cursor Agent to list models</div> : null}
             </DropdownMenuContent>
           </DropdownMenu>
-          <button
+          <Tip label={p.busy ? 'Stop' : hasText ? 'Send' : listening ? 'Stop dictation' : 'Voice input'}><button
             aria-label={p.busy ? 'Stop' : hasText ? 'Send' : listening ? 'Stop dictation' : 'Voice input'}
             className={cn('grid size-8 shrink-0 place-items-center rounded-full text-[#151515] transition-opacity hover:opacity-90', listening ? 'bg-red-400' : 'bg-[#f2f2f2]')}
             onClick={p.busy ? p.onStop : hasText || !hasMic ? send : toggleMic}
@@ -250,7 +250,7 @@ export function CursorComposer(p: Props) {
             type="button"
           >
             <Codicon name={p.busy ? 'debug-stop' : hasText || !hasMic ? 'arrow-up' : 'mic-filled'} size="0.9rem" />
-          </button>
+          </button></Tip>
         </div>
       </div>
       <div className="flex items-center justify-between px-3 pt-1.5 text-[0.78rem] text-(--ui-text-secondary)">
