@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TodoItem } from '@/lib/todos'
 
 import {
+  $retainedTodosBySession,
   $todoRevisionsBySession,
   $todosBySession,
   clearActiveSessionTodos,
@@ -14,7 +15,7 @@ import {
 
 const todo = (id: string, status: TodoItem['status']): TodoItem => ({ content: `task ${id}`, id, status })
 
-describe('setSessionTodos finished-list auto-clear', () => {
+describe('setSessionTodos task-list persistence', () => {
   beforeEach(() => {
     vi.useFakeTimers()
   })
@@ -32,21 +33,20 @@ describe('setSessionTodos finished-list auto-clear', () => {
     expect($todosBySession.get().s1).toHaveLength(2)
   })
 
-  it('drops the list shortly after every item completes', () => {
+  it('keeps a finished list until it is explicitly cleared', () => {
     setSessionTodos('s1', [todo('a', 'completed'), todo('b', 'cancelled')])
 
     expect($todosBySession.get().s1).toHaveLength(2)
 
-    vi.advanceTimersByTime(5_000)
+    vi.advanceTimersByTime(60_000)
 
-    expect($todosBySession.get().s1).toBeUndefined()
+    expect($todosBySession.get().s1).toHaveLength(2)
   })
 
-  it('cancels the pending clear when a new active list arrives', () => {
+  it('keeps the same list mounted when a new active update arrives', () => {
     setSessionTodos('s1', [todo('a', 'completed')])
-    vi.advanceTimersByTime(2_000)
+    vi.advanceTimersByTime(60_000)
 
-    // The next turn starts a fresh plan before the linger expires.
     setSessionTodos('s1', [todo('a', 'completed'), todo('b', 'pending')])
     vi.advanceTimersByTime(60_000)
 
@@ -72,20 +72,25 @@ describe('clearActiveSessionTodos (turn-end cleanup)', () => {
     expect($todosBySession.get().s1).toBeUndefined()
   })
 
-  it('leaves a finished list to its normal linger instead of clearing immediately', () => {
+  it('leaves a finished list mounted instead of clearing it at turn end', () => {
     setSessionTodos('s1', [todo('a', 'completed')])
 
     clearActiveSessionTodos('s1')
 
     expect($todosBySession.get().s1).toHaveLength(1)
-    vi.advanceTimersByTime(5_000)
-    expect($todosBySession.get().s1).toBeUndefined()
+    vi.advanceTimersByTime(60_000)
+    expect($todosBySession.get().s1).toHaveLength(1)
   })
 
   it('is a no-op when the session has no todos', () => {
     clearActiveSessionTodos('s1')
 
     expect($todosBySession.get().s1).toBeUndefined()
+  })
+
+  it('ignores an inherited prototype key on an empty map', () => {
+    expect(() => clearActiveSessionTodos('toString')).not.toThrow()
+    expect(Object.hasOwn($todosBySession.get(), 'toString')).toBe(false)
   })
 })
 
@@ -133,6 +138,20 @@ describe('revisioned snapshots', () => {
 
     restoreSessionTodosFromSnapshot('s1', snapshot, true)
     expect($todosBySession.get().s1?.[0]?.id).toBe('active')
+  })
+
+  it('keeps an idle snapshot available for review without reviving live work', () => {
+    const saved = [todo('a', 'completed'), todo('b', 'in_progress')]
+    restoreSessionTodosFromSnapshot('s1', { revision: 7, todos: saved }, false)
+
+    expect($todosBySession.get().s1).toBeUndefined()
+    expect($retainedTodosBySession.get().s1).toEqual(saved)
+
+    restoreSessionTodosFromSnapshot('s1', { revision: 6, todos: [todo('old', 'pending')] }, false)
+    expect($retainedTodosBySession.get().s1).toEqual(saved)
+
+    restoreSessionTodosFromSnapshot('s1', { revision: 8, todos: [] }, false)
+    expect($retainedTodosBySession.get().s1).toBeUndefined()
   })
 
   it('applies an unversioned update after a revisioned snapshot (tool.start merge)', () => {

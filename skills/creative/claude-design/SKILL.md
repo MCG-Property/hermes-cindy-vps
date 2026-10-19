@@ -1,7 +1,7 @@
 ---
 name: claude-design
-description: Design one-off HTML artifacts (landing, deck, prototype).
-version: 1.1.0
+description: Design one-off HTML artifacts (landing, deck, prototype) and preview them live in Desktop.
+version: 1.2.0
 author: BadTechBandit
 license: MIT
 platforms: [linux, macos, windows]
@@ -11,11 +11,11 @@ metadata:
     related_skills: [design-md, popular-web-designs, excalidraw, architecture-diagram]
 ---
 
-# Claude Design for CLI/API Agents
+# Claude Design for Hermes
 
-Use this skill when the user asks for design work that would normally fit Claude Design, but the agent is running in a CLI/API environment instead of the hosted Claude Design web UI.
+Use this skill when the user asks for design work that would normally fit Claude Design.
 
-The goal is to preserve Claude Design's useful design behavior and taste while removing hosted-tool plumbing that does not exist in normal agent environments.
+The goal is to preserve Claude Design's useful design behavior and taste. On Hermes Desktop the artifact must load as a live, clickable preview in the chat window — not only as a file path.
 
 **Before starting, check for other web-design skills like `popular-web-designs` (ready-to-paste design systems for Stripe, Linear, Vercel, Notion, etc.) and `design-md` (Google's DESIGN.md token spec format).** If the user wants a known brand's look, load `popular-web-designs` alongside this one and let it supply the visual vocabulary. If the deliverable is a token spec file rather than a rendered artifact, use `design-md` instead. Full decision table below.
 
@@ -39,34 +39,37 @@ These compose: use `popular-web-designs` for the visual vocabulary, `claude-desi
 
 ## Runtime Mode
 
-You are running in **CLI/API mode**, not the Claude Design hosted web UI.
+You are in Hermes (Desktop, CLI, TUI, or a messaging gateway), not the hosted Claude Design web UI.
 
-Ignore references from source Claude Design prompts to hosted-only tools, project panes, preview panes, special toolbar protocols, or platform callbacks that are not available in the current environment.
+Remap hosted Claude Design tools to Hermes equivalents. Do not call hosted APIs.
 
-Examples of hosted-tool concepts to ignore or remap:
+| Hosted | Hermes |
+|---|---|
+| `show_html()` / preview pane | Write the HTML file, then emit `::preview{file="path.html"}` alone on its own line (Desktop). |
+| `show_to_user()` | Same preview line, plus a one-line caption above it. |
+| `window.claude.complete()` | `data-hermes-send="prompt"` on a control, or `window.hermes.send("prompt")`. |
+| `done()`, Tweaks toolbar, project panes, `questions_v2()`, `fork_verifier_agent()`, `snip()`, `eval_js_user_view()`, `/projects/…` paths | Ignore. Use normal chat. |
 
-- `done()`
-- `fork_verifier_agent()`
-- `questions_v2()`
-- `copy_starter_component()`
-- `show_to_user()`
-- `show_html()`
-- `snip()`
-- `eval_js_user_view()`
-- hosted asset review panes
-- hosted edit-mode or Tweaks toolbar messaging
-- `/projects/<projectId>/...` cross-project paths
-- built-in `window.claude.complete()` artifact helper
-- tool schemas embedded in the source prompt
-- web-search citation scaffolding meant for the hosted runtime
+### Desktop live preview (required)
 
-Instead, use the tools actually available in the current agent environment.
+When the platform hint says you are in the Hermes desktop app, the user must be able to click the result in the same window after it loads.
+
+1. Write a self-contained HTML file in the **session working directory** (the gateway's cwd — on a remote gateway that is the remote disk, not the Mac).
+2. End the visible reply with a paragraph that is **only**:
+   `::preview{file="Your File.html"}`
+3. Do **not** use `MEDIA:` for the canvas. `MEDIA:` is a download card. `::preview` is the interactive surface.
+4. Quote paths that contain spaces: `::preview{file="Landing Page.html"}`.
+5. On the next iteration, overwrite the file (or write `Name v2.html`) and emit `::preview` again so the frame remounts.
+6. Primary controls that should continue the design chat use `data-hermes-send="…"`. Answer those hidden turns by updating the HTML and emitting `::preview` again — not with a prose-only reply.
+
+CLI / TUI / SMS: skip `::preview` (it prints as literal text). Give the absolute path instead.
 
 Default deliverable:
 
 - a complete local HTML file
 - self-contained CSS and JavaScript when portability matters
-- exact on-disk path in the final response
+- Desktop: `::preview{file="…"}` so the artifact is usable in-chat
+- CLI/TUI: exact on-disk path
 - verification using available local methods before saying it is done
 
 If the user asks for implementation in an existing repo, generate code in the repo's actual stack instead of forcing a standalone HTML artifact.
@@ -236,7 +239,8 @@ This one constraint eliminates more generic-looking UI than any aesthetic rule b
    - Run the slop self-audit (see "Slop Diagnostic") and repair only what it flags.
 
 8. **Report briefly**
-   - exact file path
+   - Desktop: `::preview{file="…"}` on its own line (this is the deliverable)
+   - CLI/TUI: exact file path
    - what was created
    - caveats
    - next decision or next iteration
@@ -289,6 +293,8 @@ Avoid:
 - `scrollIntoView` unless there is no safer option
 
 Mobile hit targets should be at least 44px.
+
+On Desktop prototypes, put `data-hermes-send="short follow-up"` on the primary actions you want to continue the design chat (for example "Try another layout"). The click is a hidden user turn; update the HTML and re-emit `::preview`.
 
 For print documents, text should be at least 12pt.
 

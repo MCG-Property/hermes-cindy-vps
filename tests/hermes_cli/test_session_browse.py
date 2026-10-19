@@ -9,6 +9,8 @@ Covers:
 import time
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 
 from hermes_cli.sessions_cmd_browse import _session_browse_picker
 
@@ -95,6 +97,7 @@ class TestSessionBrowsePicker:
 
 # ─── Curses-based picker (mocked curses) ────────────────────────────────────
 
+@pytest.mark.platforms("linux")
 class TestCursesBrowse:
     """Tests for the curses-based interactive picker via simulated key sequences."""
 
@@ -183,6 +186,8 @@ class TestEdgeCases:
                 _session_browse_picker(sessions)
 
         output = capsys.readouterr().out
-        assert "just now" in output
-        assert "2h ago" in output
-        assert "3d ago" in output
+        from hermes_cli.timefmt import format_sydney
+
+        assert format_sydney(now) in output
+        assert format_sydney(now - 7200) in output
+        assert format_sydney(now - 259200) in output

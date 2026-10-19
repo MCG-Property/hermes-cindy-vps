@@ -1,10 +1,11 @@
 import { configure } from '@testing-library/react'
 
-import { stubResizeObserver } from './src/test/jsdom'
+import { InertResizeObserver } from './src/test/jsdom'
 
-// Shared tooltips now measure their arrow through Radix's useSize hook.
-// Geometry assertions still belong in a real browser, not this inert observer.
-stubResizeObserver()
+// Shared tooltips measure their arrow through Radix's useSize hook.
+// Geometry assertions still belong in a real browser, not this inert observer. Assigned,
+// not `vi.stubGlobal`, so a test's `vi.unstubAllGlobals()` cannot strip it.
+globalThis.ResizeObserver ??= InertResizeObserver as unknown as typeof ResizeObserver
 
 // Node 26 defines its own `localStorage` accessor on the global object, which
 // returns `undefined` unless the process was started with --localstorage-file
@@ -13,7 +14,9 @@ stubResizeObserver()
 // accessor shadows jsdom's Storage and every `localStorage.getItem(...)` in a
 // test throws "Cannot read properties of undefined". Install a real in-memory
 // Storage when the global resolves to nothing, before any test module reads it.
-if (typeof (globalThis as any).localStorage === 'undefined') {
+const existingStorage = (globalThis as { localStorage?: Storage }).localStorage
+
+if (typeof existingStorage?.clear !== 'function') {
   const store = new Map<string, string>()
 
   const storage: Storage = {
@@ -24,14 +27,14 @@ if (typeof (globalThis as any).localStorage === 'undefined') {
     getItem: (k: string) => store.get(String(k)) ?? null,
     setItem: (k: string, v: string) => void store.set(String(k), String(v)),
     removeItem: (k: string) => void store.delete(String(k)),
-    clear: () => store.clear(),
+    clear: () => store.clear()
   }
 
   for (const target of [globalThis, (globalThis as any).window].filter(Boolean)) {
     Object.defineProperty(target, 'localStorage', {
       value: storage,
       configurable: true,
-      writable: true,
+      writable: true
     })
   }
 }
@@ -45,12 +48,25 @@ globalThis.IntersectionObserver = class {
   observe() {}
   unobserve() {}
   disconnect() {}
-  takeRecords(): IntersectionObserverEntry[] { return [] }
+  takeRecords(): IntersectionObserverEntry[] {
+    return []
+  }
 } as typeof IntersectionObserver
 
-// React 19 + Testing Library 16: opt into the act environment so render(),
-// fireEvent(), and findBy* queries automatically flush state updates without
-// spurious "not wrapped in act(...)" warnings.
+// Idle prefetches and feature queries (`CSS.supports`) run on mount.
+// jsdom has neither API; idle work never fires and every feature reads as absent.
+globalThis.requestIdleCallback ??= () => 0
+globalThis.cancelIdleCallback ??= () => undefined
+globalThis.CSS ??= { escape: (value: string) => value, supports: () => false } as unknown as typeof CSS
+
+if ('Element' in globalThis) {
+  Element.prototype.scrollTo ??= () => undefined
+
+  // React 19 + Testing Library 16: opt into the act environment so render(),
+  // fireEvent(), and findBy* queries automatically flush state updates without
+  // spurious "not wrapped in act(...)" warnings.
+}
+
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 
 // findBy*/waitFor default to a 1000ms deadline — too tight for async-heavy

@@ -1,14 +1,22 @@
-"""Small shared time-formatting helpers for CLI output."""
+"""Small shared time-formatting helpers for CLI output.
+
+Session-list clocks on this VPS are Australia/Sydney in Cam's stamp:
+``dd:mm:yy hh:mm:ss``.
+"""
 
 from __future__ import annotations
 
 import logging
 import math
-import time as _time
 from datetime import datetime
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
+
+SYDNEY_TZ = ZoneInfo("Australia/Sydney")
+# day:month:year hours:minutes:seconds (AEST/AEDT)
+SYDNEY_STAMP = "%d:%m:%y %H:%M:%S"
 
 # Epoch-seconds window a stored timestamp must fall in to be trusted: 1970 .. ~2103 (inside 32-bit
 # ``time_t`` so ``fromtimestamp`` accepts it on every platform). SQLite dynamic typing lets a TEXT
@@ -40,19 +48,23 @@ def coerce_epoch(value: Any, *, session_id: Optional[str] = None, field: str = "
     return ts
 
 
+def format_sydney(ts=None) -> str:
+    """Render *ts* (unix seconds) or now as Australia/Sydney ``SYDNEY_STAMP``."""
+    if ts in (None, "", 0):
+        if ts in (None, ""):
+            dt = datetime.now(SYDNEY_TZ)
+        else:
+            dt = datetime.fromtimestamp(0, tz=SYDNEY_TZ)
+    else:
+        try:
+            dt = datetime.fromtimestamp(float(ts), tz=SYDNEY_TZ)
+        except (TypeError, ValueError, OSError, OverflowError):
+            return "?"
+    return dt.strftime(SYDNEY_STAMP)
+
+
 def relative_time(ts, *, session_id: Optional[str] = None) -> str:
-    """Format a timestamp as relative time (e.g., '2h ago', 'yesterday'); ``?`` when unset or corrupt."""
+    """Session-list last-active stamp (Sydney); ``?`` when unset or corrupt."""
     if not ts or (ts := coerce_epoch(ts, session_id=session_id, field="last_active")) is None:
         return "?"
-    delta = _time.time() - ts
-    if delta < 60:
-        return "just now"
-    if delta < 3600:
-        return f"{int(delta / 60)}m ago"
-    if delta < 86400:
-        return f"{int(delta / 3600)}h ago"
-    if delta < 172800:
-        return "yesterday"
-    if delta < 604800:
-        return f"{int(delta / 86400)}d ago"
-    return datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+    return format_sydney(ts)

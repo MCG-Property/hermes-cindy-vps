@@ -15,7 +15,16 @@ import {
 import { Kbd } from '@/components/ui/kbd'
 import { Tip } from '@/components/ui/tooltip'
 import { useI18n } from '@/i18n'
-import { Clipboard, FileText, FolderOpen, type IconComponent, ImageIcon, Link, MessageSquareText } from '@/lib/icons'
+import {
+  Clipboard,
+  FileText,
+  FolderOpen,
+  type IconComponent,
+  ImageIcon,
+  Link,
+  MessageSquareText,
+  SmilePlusIcon
+} from '@/lib/icons'
 import { cn } from '@/lib/utils'
 
 import { useComposerAttachmentProviders } from './contrib'
@@ -40,6 +49,7 @@ export function ContextMenu({
   // window (composer "+" anchor), so we promoted it to a real Dialog —
   // easier to grow with search / descriptions, and no positioning math.
   const [snippetsOpen, setSnippetsOpen] = useState(false)
+  const [emojiOpen, setEmojiOpen] = useState(false)
   // `composer.attachments` contributions — plugin/core-registered rows that
   // extend this menu through the same registry as every other surface.
   const attachmentProviders = useComposerAttachmentProviders()
@@ -93,6 +103,9 @@ export function ContextMenu({
           <ContextMenuItem icon={MessageSquareText} onSelect={() => setSnippetsOpen(true)}>
             {c.promptSnippets}
           </ContextMenuItem>
+          <ContextMenuItem icon={SmilePlusIcon} onSelect={() => setEmojiOpen(true)}>
+            Emoji
+          </ContextMenuItem>
 
           {attachmentProviders.length > 0 && <DropdownMenuSeparator />}
           {attachmentProviders.map(provider => (
@@ -117,7 +130,45 @@ export function ContextMenu({
       </DropdownMenu>
 
       <PromptSnippetsDialog onInsertText={onInsertText} onOpenChange={setSnippetsOpen} open={snippetsOpen} />
+      <EmojiPickerDialog onInsertText={onInsertText} onOpenChange={setEmojiOpen} open={emojiOpen} />
     </>
+  )
+}
+
+const MESSAGING_EMOJI = [
+  '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '😉', '😊', '😇', '🥰', '😍', '🤩', '😘',
+  '😋', '😜', '🤪', '🤗', '🤭', '🤫', '🤔', '🫡', '😐', '😏', '😒', '🙄', '😬', '😌', '😔', '😴',
+  '😷', '🤒', '🤕', '🤢', '🥴', '🤯', '🤠', '🥳', '😎', '🤓', '😕', '😟', '😮', '😯', '😲', '😳',
+  '🥺', '😢', '😭', '😱', '😖', '😞', '😩', '😤', '😡', '🤬', '💀', '💩', '👻', '🤖', '👍', '👎',
+  '👏', '🙌', '🤝', '🙏', '💪', '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '💔', '💕', '💯', '✨',
+  '🔥', '⭐', '🎉', '✅', '❌', '⚠️', '💬', '👀', '🙈', '👌', '✌️', '🤞'
+]
+
+function EmojiPickerDialog({ onInsertText, onOpenChange, open }: PromptSnippetsDialogProps) {
+  return (
+    <Dialog onOpenChange={onOpenChange} open={open}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Emoji</DialogTitle>
+          <DialogDescription>Insert an emoji into the message.</DialogDescription>
+        </DialogHeader>
+        <div className="grid max-h-[min(50vh,16rem)] grid-cols-8 gap-1 overflow-y-auto">
+          {MESSAGING_EMOJI.map(emoji => (
+            <button
+              className="flex h-9 w-full cursor-pointer items-center justify-center rounded-md text-xl transition-colors hover:bg-(--ui-control-hover-background) focus-visible:bg-(--ui-control-hover-background) focus-visible:outline-none"
+              key={emoji}
+              onClick={() => {
+                onInsertText(emoji)
+                onOpenChange(false)
+              }}
+              type="button"
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

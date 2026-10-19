@@ -93,7 +93,8 @@ def test_existing_pairing_skip_branch_enables_whatsapp(isolated_home, monkeypatc
     from hermes_cli.main_platform_setup import cmd_whatsapp
 
     # Pre-create a paired session WITHOUT WHATSAPP_ENABLED in .env.
-    session = isolated_home / "whatsapp" / "session"
+    # Use the canonical platforms/ path (same resolver as the gateway adapter).
+    session = isolated_home / "platforms" / "whatsapp" / "session"
     session.mkdir(parents=True)
     (session / "creds.json").write_text("{}")
     monkeypatch.setenv("WHATSAPP_MODE", "bot")

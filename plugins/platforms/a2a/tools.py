@@ -7,13 +7,12 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
-import os
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Optional
 
-from gateway.platforms._shared import coerce_port as _coerce_int
+from gateway.platforms._shared import coerce_port as _coerce_int, get_scoped_secret as _get_scoped_secret
 
 from . import protocol, security
 
@@ -21,6 +20,28 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT = 120
 _ORCHESTRATE_MAX_WORKERS = 6  # max parallel peers for fan-out
+
+
+def _originating_session_id(runtime: dict[str, Any]) -> str:
+    """Return the durable Hermes session receiving an asynchronous peer result.
+
+    The normal registry path passes ``session_id`` directly.  Desktop/TUI tool
+    calls can traverse the deferred-tool bridge without that keyword, while
+    their per-turn ContextVar remains correctly bound and is propagated to the
+    worker.  Read that scoped value only as a fallback; never read the ambient
+    process environment, which could belong to another concurrent session.
+    """
+    direct = str(runtime.get("session_id") or "").strip()
+    if direct:
+        return direct
+    try:
+        from gateway.session_context import get_session_env, session_context_engaged
+
+        if session_context_engaged():
+            return str(get_session_env("HERMES_SESSION_ID", "") or "").strip()
+    except Exception:
+        logger.debug("A2A could not resolve the scoped origin session", exc_info=True)
+    return ""
 
 
 def _load_config() -> dict:
@@ -52,7 +73,7 @@ def _auth_header(auth: dict) -> dict:
 
 def _http_json(url: str, headers: dict, timeout: int, method: str, data: Optional[bytes] = None) -> dict:
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (configured peers)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
@@ -187,7 +208,7 @@ def a2a_call(args: dict, **runtime: Any) -> str:
     agent = str(args.get("agent") or args.get("agent_name") or args.get("name") or "").strip()
     message = str(args.get("message") or args.get("text") or args.get("task") or "").strip()
     context_id = str(args.get("context_id") or args.get("contextId") or "").strip()
-    reply_session_id = str(runtime.get("session_id") or "").strip()
+    reply_session_id = _originating_session_id(runtime)
     if not agent or not message:
         return "Error: both 'agent' and 'message' are required."
     peer = _resolve_peer(agent)
@@ -281,7 +302,7 @@ def a2a_orchestrate(args: dict, **runtime: Any) -> str:
     mode = str(args.get("mode") or "all").strip().lower()
     mode = mode if mode in ("all", "first", "best") else "all"
     context_id = str(args.get("context_id") or "").strip()
-    reply_session_id = str(runtime.get("session_id") or "").strip()
+    reply_session_id = _originating_session_id(runtime)
     if not message:
         return "Error: 'message' is required."
     if not capability:
@@ -370,11 +391,12 @@ def _a2a_tools_available() -> bool:
         if cfg.get("a2a_agents"):
             return True
     try:
-        if os.getenv("A2A_PORT"):
+        # Scoped like the platform gate: os.environ is the launch profile's under multiplexing (#122126).
+        if _get_scoped_secret("A2A_PORT"):
             return True
         a2a_cfg = (cfg.get("platforms") or {}).get("a2a") or {}
         return bool(isinstance(a2a_cfg, dict) and a2a_cfg.get("enabled"))
-    except Exception:  # noqa: BLE001
+    except Exception:
         return False
 
 
@@ -387,11 +409,3 @@ def register_tools(ctx) -> None:
         ctx.register_tool(name=name, toolset="a2a", handler=handler, description=description,
                           schema={"name": name, "description": description, "parameters": parameters},
                           emoji="\U0001f9e9", check_fn=_a2a_tools_available)  # puzzle piece
-
-
-# ---- BEGIN PLUGIN-COMPAT (revert-scheduled; see COMPAT_MANIFEST.md) ----
-# Names external plugins imported from this module before the Sep 2026 decomposition.
-# Internal code MUST NOT use these (scripts/check_compat_pointers.py fails CI if it does).
-# The whole block is removed by reverting the commit that added it.
-from typing import TypedDict  # noqa: F401,E402
-# ---- END PLUGIN-COMPAT ----

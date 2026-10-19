@@ -134,7 +134,7 @@ export function FallbackModelsField({
               <SelectTrigger className={cn('min-w-36', CONTROL_TEXT)}>
                 <SelectValue placeholder={m.provider} />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent searchable>
                 {providers.map(provider => (
                   <SelectItem key={provider.slug} value={provider.slug}>
                     {provider.name}
@@ -148,6 +148,7 @@ export function FallbackModelsField({
               onValueChange={model => updateRow(index, { model })}
               provider={providerRow}
               providerSlug={entry.provider}
+              searchable
               value={entry.model}
             />
             <Button

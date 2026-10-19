@@ -6,7 +6,7 @@ import { Loader } from '@/components/ui/loader'
 import { useI18n } from '@/i18n'
 import { cn } from '@/lib/utils'
 
-import { reportTerminalShell } from './terminals'
+import { createTerminal, reportTerminalShell } from './terminals'
 import { useAgentTerminal } from './use-agent-terminal'
 import { useTerminalSession } from './use-terminal-session'
 
@@ -17,8 +17,10 @@ const INSTANCE_CLASS = 'absolute inset-0 flex flex-col bg-(--ui-terminal-surface
 // xterm host. The screen/viewport overrides matter for the DOM renderer (the
 // WebGL fast-path paints the canvas from ITheme.background instead) — both
 // resolve to the same token, so the two renderers can't disagree.
+// Hide xterm's native scrollbar: Cursor transcript scroll is Page Up/Down →
+// tmux copy-mode history (or Ink U() on the PTY), not xterm viewport history.
 const HOST_CLASS =
-  'h-full min-h-0 overflow-hidden text-(--ui-text-secondary) [&_.xterm]:h-full [&_.xterm-screen]:bg-(--ui-terminal-surface-background)! [&_.xterm-viewport]:bg-(--ui-terminal-surface-background)!'
+  'h-full min-h-0 overflow-hidden text-(--ui-text-secondary) [&_.xterm]:h-full [&_.xterm-screen]:bg-(--ui-terminal-surface-background)! [&_.xterm-viewport]:bg-(--ui-terminal-surface-background)! [&_.xterm-viewport]:overflow-hidden!'
 
 interface TerminalInstanceProps {
   id: string
@@ -27,6 +29,8 @@ interface TerminalInstanceProps {
   onAddSelectionToChat: (text: string, label?: string) => void
   restoreCwd?: string
   reviveBuffer?: string
+  cursorChatId?: string
+  resumeOnCreate?: boolean
 }
 
 /** One persistent xterm+PTY. Every open tab stays mounted (so its shell and
@@ -37,7 +41,9 @@ export function TerminalInstance({
   cwd,
   onAddSelectionToChat,
   restoreCwd,
-  reviveBuffer
+  reviveBuffer,
+  cursorChatId,
+  resumeOnCreate
 }: TerminalInstanceProps) {
   const { t } = useI18n()
 
@@ -48,13 +54,19 @@ export function TerminalInstance({
     onAddSelectionToChat,
     restoreCwd,
     reviveBuffer,
+    cursorChatId,
+    resumeOnCreate,
     onShell: shell => reportTerminalShell(id, shell)
   })
 
   return (
     <div
       className={cn(INSTANCE_CLASS, active ? 'visible' : 'invisible pointer-events-none')}
-      // Focus-scope marker so isFocusWithin('[data-terminal]') can route ⌘W here.
+      // Focus-scope markers. The shared [data-terminal] routes close-tab
+      // commands here; [data-interactive-terminal] marks the surface as a live
+      // PTY, so the close-tab rung re-delivers the chord's control byte to
+      // the shell instead of closing the pane and killing it (#65457).
+      data-interactive-terminal=""
       data-terminal=""
     >
       {status === 'starting' && (
@@ -101,15 +113,27 @@ interface AgentTerminalInstanceProps {
 /** Read-only mirror of an agent background process — a write-only xterm streamed
  *  live from the backend output (no PTY, no input). */
 export function AgentTerminalInstance({ active, id, procId }: AgentTerminalInstanceProps) {
+  const { t } = useI18n()
   const { hostRef } = useAgentTerminal({ active, id, procId })
 
   return (
     <div
       className={cn(INSTANCE_CLASS, active ? 'visible' : 'invisible pointer-events-none')}
       // Same focus-scope marker as the user terminal so isFocusWithin('[data-terminal]')
-      // routes ⌘W here and closes the focused agent tab (not a preview).
+      // routes ⌘W here and closes the focused agent tab (not a preview). No
+      // [data-interactive-terminal]: this mirror has no PTY input, so the
+      // close-tab chord keeps its close meaning here.
       data-terminal=""
     >
+      <div className="flex shrink-0 flex-wrap items-center gap-2 py-2 text-xs text-(--ui-text-secondary)">
+        <div className="min-w-0 flex-1">
+          <p className="font-medium">{t.rightSidebar.terminalReadOnly}</p>
+          <p>{t.rightSidebar.terminalReadOnlyHelp}</p>
+        </div>
+        <Button onClick={() => createTerminal()} size="sm" type="button" variant="secondary">
+          {t.rightSidebar.terminalOpenInteractive}
+        </Button>
+      </div>
       <div className={HOST_CLASS} ref={hostRef} />
     </div>
   )

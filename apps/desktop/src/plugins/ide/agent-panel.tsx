@@ -1,4 +1,4 @@
-import { Codicon, useValue } from '@hermes/plugin-sdk'
+import { Codicon, Tip, useValue } from '@hermes/plugin-sdk'
 import { useCallback, useEffect, useState } from 'react'
 
 import { ideApi } from './api'
@@ -22,9 +22,9 @@ export function RepoPicker({ onAdd }: { onAdd: () => void }) {
           </option>
         ))}
       </select>
-      <button className="grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={onAdd} title="Add repository" type="button">
+      <Tip label="Add repository"><button aria-label="Add repository" className="grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={onAdd} type="button">
         <Codicon name="new-folder" size="0.85rem" />
-      </button>
+      </button></Tip>
     </div>
   )
 }

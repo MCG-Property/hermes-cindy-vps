@@ -283,6 +283,7 @@ async def test_relay_restart_notification_uses_logical_platform_and_owner(tmp_pa
     assert not notify_path.exists()
 
 
+@pytest.mark.skip(reason="fork policy: restart/shutdown lifecycle notices are replaced by the post-boot GATEWAY HEALTHY receipt")
 @pytest.mark.asyncio
 async def test_send_restart_notification_logs_warning_on_sendresult_failure(
     tmp_path, monkeypatch, caplog
@@ -320,6 +321,7 @@ async def test_send_restart_notification_logs_warning_on_sendresult_failure(
 
 
 
+@pytest.mark.skip(reason="fork policy: restart/shutdown lifecycle notices are replaced by the post-boot GATEWAY HEALTHY receipt")
 @pytest.mark.asyncio
 async def test_shutdown_notifications_use_cached_live_thread_source_when_origin_missing():
     runner, adapter = make_restart_runner()
@@ -337,7 +339,34 @@ async def test_shutdown_notifications_use_cached_live_thread_source_when_origin_
     chat_id, message = adapter.send.await_args.args
     assert chat_id == "parent-42"
     assert message
-    assert adapter.send.await_args.kwargs == {"metadata": {"thread_id": "topic-7"}}
+    assert adapter.send.await_args.kwargs == {"metadata": {"thread_id": "topic-7", "_interim_send": True}}
+
+
+@pytest.mark.skip(reason="fork policy: restart/shutdown lifecycle notices are replaced by the post-boot GATEWAY HEALTHY receipt")
+@pytest.mark.asyncio
+async def test_shutdown_home_channel_broadcast_carries_interim_marker():
+    """Active-chat and home-channel shutdown sends are interim sends (#98432): a
+    stream-is-the-message adapter must not seal an in-flight answer with the advisory,
+    including when the home channel has no thread routing metadata."""
+    runner, adapter = make_restart_runner()
+    source = make_restart_source(chat_id="active-42", chat_type="dm")
+    session_key = build_session_key(source)
+
+    runner.config.platforms[Platform.TELEGRAM].home_channel = HomeChannel(
+        platform=Platform.TELEGRAM,
+        chat_id="home-42",
+        name="Ops Home",
+    )
+    runner._running_agents[session_key] = object()
+    runner.session_store._entries[session_key] = MagicMock(origin=source)
+    adapter.send = AsyncMock(return_value=SendResult(success=True, message_id="m"))
+
+    await runner._notify_active_sessions_of_shutdown()
+
+    targets = [c.args[0] for c in adapter.send.await_args_list]
+    assert targets == ["active-42", "home-42"]
+    for call in adapter.send.await_args_list:
+        assert call.kwargs["metadata"]["_interim_send"] is True
 
 
 @pytest.mark.asyncio

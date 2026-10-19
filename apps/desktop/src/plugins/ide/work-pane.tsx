@@ -1,4 +1,4 @@
-import { cn, Codicon } from '@hermes/plugin-sdk'
+import { cn, Codicon, Tip } from '@hermes/plugin-sdk'
 import { useCallback, useEffect, useState } from 'react'
 
 import { ideApi } from './api'
@@ -193,9 +193,9 @@ export function BrowserTab({ url, onUrl }: { onUrl: (u: string) => void; url: st
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-10 items-center gap-1 px-2">
-        <button className="grid size-7 place-items-center rounded text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={() => onUrl(url)} title="Reload" type="button">
+        <Tip label="Reload"><button aria-label="Reload" className="grid size-7 place-items-center rounded text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={() => onUrl(url)} type="button">
           <Codicon name="refresh" size="0.85rem" />
-        </button>
+        </button></Tip>
         <input
           className="h-7 flex-1 rounded-full bg-(--ui-bg-quaternary) px-3 text-[0.8rem] outline-none"
           onChange={e => setDraft(e.target.value)}
@@ -203,9 +203,9 @@ export function BrowserTab({ url, onUrl }: { onUrl: (u: string) => void; url: st
           placeholder="localhost:3000"
           value={draft}
         />
-        <button className="grid size-7 place-items-center rounded text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={() => url && window.open(url, '_blank')} title="Open in browser" type="button">
+        <Tip label="Open in browser"><button aria-label="Open in browser" className="grid size-7 place-items-center rounded text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={() => url && window.open(url, '_blank')} type="button">
           <Codicon name="link-external" size="0.85rem" />
-        </button>
+        </button></Tip>
       </div>
       {url ? (
         <iframe className="min-h-0 flex-1 border-t border-(--ui-stroke-tertiary) bg-white" key={url} sandbox="allow-scripts allow-same-origin allow-forms allow-popups" src={url} title="Preview" />

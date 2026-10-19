@@ -41,7 +41,7 @@ def _cfg(model=None, providers=None, custom_providers=None) -> dict:
 
 
 def test_load_picker_context_coerces_numeric_yaml_provider():
-    """PyYAML parses unquoted `provider: 2070` as int; picker context must be str.
+    """YAML parses unquoted `provider: 2070` as int; picker context must be str.
 
     Desktop GET /api/model/options crashed when a custom endpoint was named
     after a GPU: current_provider.strip() and providers dict keys .lower().
@@ -110,6 +110,52 @@ def _nous_row(model: str = "openai/gpt-5.5") -> dict:
     }
 
 
+def test_build_models_payload_returns_expected_shape():
+    rows = [
+        {"slug": "openrouter", "name": "OpenRouter", "models": ["m1"],
+         "total_models": 1, "is_current": True, "is_user_defined": False,
+         "source": "built-in"},
+    ]
+    ctx = _empty_ctx(provider="openrouter", model="m1", base_url="")
+    raw_config = {
+        "moa": {
+            "presets": {
+                "default": {"enabled": True},
+            },
+        },
+    }
+    with (
+        _list_auth_returning(rows),
+        patch("hermes_cli.config.read_raw_config", return_value=raw_config),
+        patch("hermes_cli.config.load_config", return_value=raw_config),
+    ):
+        payload = build_models_payload(ctx)
+    assert set(payload.keys()) == {"providers", "model", "provider"}
+    assert payload["model"] == "m1"
+    assert payload["provider"] == "openrouter"
+    assert payload["providers"][0]["slug"] == "moa"
+    assert payload["providers"][0]["models"] == ["default"]
+    assert payload["providers"][1:] == rows
+
+
+def test_build_models_payload_hides_moa_without_raw_preset():
+    """Strict opt-in (#63353): no ``moa`` row when the raw config has no enabled preset —
+    the DEFAULT_CONFIG ``default`` preset everyone gets via ``load_config()`` is not a user choice."""
+    rows = [
+        {"slug": "openrouter", "name": "OpenRouter", "models": ["m1"],
+         "total_models": 1, "is_current": True, "is_user_defined": False,
+         "source": "built-in"},
+    ]
+    ctx = _empty_ctx(provider="openrouter", model="m1", base_url="")
+    # load_config() still returns the synthesized DEFAULT_CONFIG moa preset.
+    synthesized = {"moa": {"presets": {"default": {"enabled": True}}}}
+    with (
+        _list_auth_returning(rows),
+        patch("hermes_cli.config.read_raw_config", return_value={}),
+        patch("hermes_cli.config.load_config", return_value=synthesized),
+    ):
+        payload = build_models_payload(ctx)
+    assert [r["slug"] for r in payload["providers"]] == ["openrouter"]
 
 
 
@@ -121,7 +167,8 @@ def _nous_row(model: str = "openai/gpt-5.5") -> dict:
 def test_include_unconfigured_appends_canonical_skeletons():
     """include_unconfigured=True adds CANONICAL_PROVIDERS rows that
     list_authenticated_providers didn't emit. Skeleton rows have empty
-    models and source='canonical'."""
+    models and source='canonical'. MoA is a virtual routing mode, not a
+    canonical provider, so it is excluded — see issue #63353."""
     rows = [
         {"slug": "openrouter", "name": "OpenRouter", "models": ["m1"],
          "total_models": 1, "is_current": True, "is_user_defined": False,
@@ -131,12 +178,16 @@ def test_include_unconfigured_appends_canonical_skeletons():
     with _list_auth_returning(rows):
         payload = build_models_payload(ctx, include_unconfigured=True)
     # All canonical providers other than openrouter should appear as
-    # skeleton rows.
-    from hermes_cli.models import CANONICAL_PROVIDERS
+    # skeleton rows. MoA is virtual/opt-in and excluded from unconfigured;
+    # so is a pre-release provider the user has not signed into.
+    from hermes_cli.models_catalog_static import listed_canonical_providers
 
     seen_slugs = {r["slug"] for r in payload["providers"]}
-    for entry in CANONICAL_PROVIDERS:
+    for entry in listed_canonical_providers():
+        if entry.slug == "moa":
+            continue  # virtual; only shown when explicitly configured
         assert entry.slug in seen_slugs, f"missing {entry.slug}"
+    assert "solstice" not in seen_slugs
     # Skeletons have empty models and source='canonical'.
     skeletons = [r for r in payload["providers"]
                  if r.get("source") == "canonical"]
@@ -367,6 +418,39 @@ def test_canonical_order_uses_slug_not_is_user_defined_flag():
     )
 
 
+def test_canonical_order_with_unconfigured_preserves_full_universe():
+    """Combined picker call: include_unconfigured + picker_hints +
+    canonical_order is the production TUI shape. Verify the result
+    has CANONICAL_PROVIDERS in declaration order, hints applied,
+    custom rows trailing. MoA is excluded from unconfigured skeletons
+    (virtual, opt-in only — issue #63353).
+    """
+    from hermes_cli.models import CANONICAL_PROVIDERS
+
+    rows = [
+        {"slug": "custom:Ollama", "name": "Ollama", "models": [],
+         "total_models": 0, "is_current": False, "is_user_defined": True,
+         "source": "user-config"},
+    ]
+    ctx = _empty_ctx()
+    with _list_auth_returning(rows):
+        payload = build_models_payload(
+            ctx,
+            include_unconfigured=True,
+            picker_hints=True,
+            canonical_order=True,
+        )
+    slugs = [r["slug"] for r in payload["providers"]]
+    # First row: first canonical provider in declaration order.
+    assert slugs[0] == CANONICAL_PROVIDERS[0].slug
+    # Custom row trails all visible canonical rows. MoA is virtual/opt-in
+    # so it is excluded from the unconfigured skeleton set, and so is an
+    # unlisted pre-release provider.
+    from hermes_cli.models_catalog_static import listed_canonical_providers
+    visible_canonical_count = sum(
+        1 for e in listed_canonical_providers() if e.slug != "moa"
+    )
+    assert slugs.index("custom:Ollama") >= visible_canonical_count
 
 
 # ─── Integration: end-to-end through real load_picker_context ──────────
@@ -710,4 +794,54 @@ def test_picker_metadata_uses_one_config_read_for_real_models_dev_lookups(tmp_pa
         model: {"fast": False, "reasoning": model.startswith("openai/")}
         for model in models[:3]
     }
-    assert large_row["featured_models"] == models
+    # #120217: ``providers.lab`` is a user-defined row, so its models: list is an explicit
+    # allow-list and is never shortlisted — the constant-read invariant above is now carried
+    # by the capabilities lookups alone.
+    assert large_row["featured_models"] == []
+
+
+def test_openrouter_featured_is_curated_plus_current():
+    """A 5-per-lab dump of the live OpenRouter catalog flooded the Desktop chat
+    picker. Featured must stay the curated shortlist plus the active pick."""
+    from hermes_cli import inventory
+    from hermes_cli.models import OPENROUTER_MODELS
+
+    curated = [mid for mid, _ in OPENROUTER_MODELS]
+    current = "openai/gpt-5.6-luna-pro"
+    extra = [f"vendor/extra-{i}" for i in range(90)]
+    rows = [{
+        "slug": "openrouter",
+        "models": curated + extra + [current] if current not in curated else curated + extra,
+    }]
+
+    inventory._apply_featured(rows, current_model=current)
+
+    featured = rows[0]["featured_models"]
+    assert current in featured
+    assert all(mid in featured for mid in curated if mid in rows[0]["models"])
+    assert "vendor/extra-0" not in featured
+    assert len(featured) < 80
+
+
+def test_openrouter_capabilities_skip_non_featured_lookups():
+    from hermes_cli import inventory
+
+    featured = ["openai/gpt-5.6-luna-pro"]
+    models = featured + [f"vendor/extra-{i}" for i in range(90)]
+    rows = [{"slug": "openrouter", "models": models, "featured_models": featured}]
+
+    calls: list[tuple[str, str]] = []
+
+    class _Meta:
+        supports_reasoning = True
+
+    def _fake_caps(slug, model, **_kwargs):
+        calls.append((slug, model))
+        return _Meta()
+
+    with patch("agent.models_dev.get_model_capabilities", side_effect=_fake_caps):
+        inventory._apply_capabilities(rows)
+
+    assert calls == [("openrouter", "openai/gpt-5.6-luna-pro")]
+    assert rows[0]["capabilities"]["vendor/extra-0"]["reasoning"] is True
+    assert rows[0]["capabilities"]["openai/gpt-5.6-luna-pro"]["reasoning"] is True

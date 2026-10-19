@@ -1,6 +1,6 @@
 import './status-stack.css'
 
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 
 import { DisclosureCaret } from '@/components/ui/disclosure-caret'
 
@@ -35,6 +35,10 @@ export function StatusSection({
   preview
 }: StatusSectionProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
+
+  useEffect(() => {
+    setCollapsed(defaultCollapsed)
+  }, [defaultCollapsed])
 
   return (
     <div data-slot="status-section">

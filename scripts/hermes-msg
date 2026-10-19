@@ -1,0 +1,157 @@
+#!/bin/sh
+# Deterministic messaging keep-alive + Chrome park. Does not read chat text.
+#
+# Slack / Telegram / iMessage / WhatsApp (Baileys node) stay on the gateway.
+# Gmail watcher stays up. Email platform stays disabled.
+#
+# Chrome is on-demand only (browser-cdp). It is not needed for phone messaging.
+# Auto park: stop chromium-cdp + kill leftover wwa/puppeteer when Desktop is
+# gone, or when Chrome has been idle (low CPU) for CHROME_IDLE_SECONDS.
+# hermes-msg is optional (status / force sleep / force wake).
+set -eu
+
+HOME_DIR=${HOME:-/home/hermes}
+HERMES_HOME=${HERMES_HOME:-$HOME_DIR/.hermes}
+STATE_DIR=$HERMES_HOME/state
+STAMP=$STATE_DIR/messaging.activity
+PARKED=$STATE_DIR/messaging.parked
+IDLE_MIN=${HERMES_MSG_IDLE_MINUTES:-20}
+CHROME_IDLE_SEC=${HERMES_CHROME_IDLE_SECONDS:-120}
+export SYSTEMD_PAGER=
+
+mkdir -p "$STATE_DIR"
+
+touch_activity() {
+  : >"$STAMP"
+}
+
+newest_activity_epoch() {
+  newest=0
+  for f in "$STAMP" "$HERMES_HOME/sessions/sessions.json" "$HERMES_HOME/a2a_audit.jsonl"; do
+    [ -e "$f" ] || continue
+    mt=$(date -r "$f" +%s 2>/dev/null || stat -c %Y "$f")
+    [ "$mt" -gt "$newest" ] && newest=$mt
+  done
+  echo "$newest"
+}
+
+unit_active() {
+  systemctl --user is-active --quiet "$1"
+}
+
+desktop_present() {
+  pgrep -f 'serve --isolated' >/dev/null 2>&1
+}
+
+ensure_core() {
+  systemctl --user start hermes-gateway.service
+  systemctl --user start gmail-reply-watcher.service
+}
+
+# Leftover WhatsApp-Web / puppeteer — never required for Baileys inbound.
+kill_orphan_browsers() {
+  pkill -TERM -f 'puppeteer/chrome' 2>/dev/null || true
+  pkill -TERM -f 'chrome-headless-shell' 2>/dev/null || true
+  pkill -TERM -f 'wwa __daemon' 2>/dev/null || true
+}
+
+# Official Hermes browser-cdp unit (MemoryMax 256M). Stop, do not pkill:
+# Restart=on-failure would bring it back.
+stop_chromium_cdp() {
+  if unit_active chromium-cdp; then
+    systemctl --user stop chromium-cdp.service
+  fi
+}
+
+# Sum CPU and youngest etime for the on-demand CDP Chrome only.
+cdp_chrome_stats() {
+  ps -eo pcpu=,etimes=,args= | awk '
+    $0 ~ /remote-debugging-port=9222/ || $0 ~ /[.]agent-browser[/]browsers[/].*[/]chrome[ ]/ {
+      cpu += $1
+      if (age == 0 || $2 < age) age = $2
+    }
+    END { printf "%.1f %d\n", cpu + 0, age + 0 }
+  '
+}
+
+chrome_should_stay() {
+  desktop_present || return 1
+  stats=$(cdp_chrome_stats)
+  cpu=${stats%% *}
+  age=${stats##* }
+  [ "$age" -gt 0 ] || return 1
+  awk -v cpu="$cpu" -v age="$age" -v idle="$CHROME_IDLE_SEC" 'BEGIN {
+    exit !((cpu + 0) >= 1.0 || (age + 0) < idle)
+  }'
+}
+
+park_chrome() {
+  kill_orphan_browsers
+  if chrome_should_stay; then
+    rm -f "$PARKED"
+    echo "chromium-cdp busy; left running"
+    return 0
+  fi
+  stop_chromium_cdp
+  kill_orphan_browsers
+  : >"$PARKED"
+  echo "chrome parked (cdp stopped; leftover wwa/puppeteer killed)"
+}
+
+cmd_status() {
+  gw=down
+  gm=down
+  desk=no
+  cdp=down
+  unit_active hermes-gateway && gw=up
+  unit_active gmail-reply-watcher && gm=up
+  unit_active chromium-cdp && cdp=up
+  desktop_present && desk=yes
+  last=$(newest_activity_epoch)
+  age=unknown
+  if [ "$last" -gt 0 ]; then
+    age=$(( ($(date +%s) - last) / 60 ))
+  fi
+  parked=no
+  [ -f "$PARKED" ] && parked=yes
+  stats=$(cdp_chrome_stats)
+  echo "gateway=$gw gmail_watcher=$gm desktop=$desk chromium_cdp=$cdp chrome_parked=$parked chrome_idle_sec=$CHROME_IDLE_SEC cdp_cpu_age=$stats activity_age_min=$age"
+  echo "auto: gateway stays up; Chrome is on-demand and parks when idle or Desktop is gone"
+  echo "email platform stays disabled; smtp relay stays up"
+}
+
+cmd_wake() {
+  ensure_core
+  touch_activity
+  echo "core messaging up (does not start Chrome)."
+  cmd_status
+}
+
+cmd_sleep() {
+  kill_orphan_browsers
+  stop_chromium_cdp
+  : >"$PARKED"
+  echo "Chrome parked. gateway + gmail watcher stay up."
+  cmd_status
+}
+
+cmd_idle() {
+  ensure_core
+  if desktop_present; then
+    touch_activity
+  elif [ ! -f "$STAMP" ]; then
+    touch_activity
+  fi
+  park_chrome
+}
+
+case "${1:-status}" in
+  wake|on|start) cmd_wake ;;
+  sleep|off|stop|park) cmd_sleep ;;
+  idle|tick) cmd_idle ;;
+  status) cmd_status ;;
+  *)
+    echo "usage: hermes-msg [status|idle|sleep|wake]" >&2
+    exit 2
+    ;;
+esac

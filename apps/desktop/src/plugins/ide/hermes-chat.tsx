@@ -1,4 +1,4 @@
-import { cn, Codicon, useValue } from '@hermes/plugin-sdk'
+import { cn, Codicon, Tip, useValue } from '@hermes/plugin-sdk'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { ideApi } from './api'
@@ -60,9 +60,9 @@ export function HermesChat({ onClose }: { onClose: () => void }) {
         <span className="text-[0.84rem] font-medium">Hermes</span>
         <span className="truncate text-[0.72rem] text-(--ui-text-tertiary)">{repo ? repoName(repo) : 'no repository'}</span>
         <span className="flex-1" />
-        <button className="grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={onClose} title="Hide chat" type="button">
+        <Tip label="Hide chat"><button aria-label="Hide chat" className="grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={onClose} type="button">
           <Codicon name="close" size="0.85rem" />
-        </button>
+        </button></Tip>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3" ref={scroller}>
         {session.turns.length === 0 && !session.live ? (

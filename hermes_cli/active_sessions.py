@@ -122,7 +122,7 @@ class ActiveSessionRefusal(str):
 
     reason: str
 
-    def __new__(cls, message: str, reason: str) -> "ActiveSessionRefusal":
+    def __new__(cls, message: str, reason: str) -> ActiveSessionRefusal:
         obj = super().__new__(cls, message)
         obj.reason = reason
         return obj
@@ -169,7 +169,16 @@ def session_already_owned_message(session_id: str, entry: dict[str, Any]) -> str
 
 
 def _registry_home(registry_home: str | Path | None = None) -> Path:
-    return Path(registry_home) if registry_home is not None else Path(get_hermes_home())
+    """Return the shared Hermes home for the active-session registry.
+
+    An empty optional override is not a home; fall back to the resolved Hermes
+    home so refusal messages always identify the actual registry path.
+    """
+    if registry_home is not None:
+        candidate = str(registry_home).strip()
+        if candidate:
+            return Path(candidate).expanduser()
+    return Path(get_hermes_home()).expanduser()
 
 
 def _state_path(registry_home: str | Path | None = None) -> Path:
@@ -181,7 +190,7 @@ def _lock_path(registry_home: str | Path | None = None) -> Path:
 
 
 def _lease_paths(
-    lease: Optional["ActiveSessionLease"] = None, registry_home: str | Path | None = None
+    lease: Optional[ActiveSessionLease] = None, registry_home: str | Path | None = None
 ) -> tuple[Path, Path]:
     if lease is not None and lease.state_path is not None and lease.lock_path is not None:
         return lease.state_path, lease.lock_path
@@ -229,7 +238,7 @@ def _read_entries(path: Path, *, strict: bool = False) -> list[dict[str, Any]]:
         return ActiveSessionRegistryError(f"active session registry {what}: {path}")
 
     try:
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, "r", encoding="utf-8-sig") as fh:
             data = json.load(fh)
     except FileNotFoundError:
         return []

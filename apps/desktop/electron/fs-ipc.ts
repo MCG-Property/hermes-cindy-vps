@@ -7,6 +7,7 @@ import path from 'node:path'
 
 import { ipcMain, shell } from 'electron'
 
+import { desktopChromeRoot, rollbackChrome, snapshotChrome } from './desktop-chrome'
 import { installDesktopPluginFromGit, probePluginRepo } from './desktop-plugin-install'
 import { removeDesktopPlugin } from './desktop-plugin-remove'
 import {
@@ -15,6 +16,7 @@ import {
   migrateProfileScopedDesktopPlugins,
   reconcileUnifiedDesktopHalves
 } from './desktop-plugins-root'
+import { DESKTOP_PROFILE_NAME_RE } from './desktop-profile'
 import { readDirForIpc } from './fs-read-dir'
 import { gitRootForIpc } from './git-root'
 
@@ -98,9 +100,15 @@ export function registerFsIpc({
   // so it stays valid in every connection mode. Created on demand, like openDir.
   // Profile-scoped roots (agent plugins, logs) live under profiles/<name>/ for a
   // named Desktop profile — they belong to THAT agent. 'default'/unset pins the
-  // global root.
-  async function localPluginsRoot(dirName: string): Promise<string> {
-    const profile = readActiveDesktopProfile()
+  // global root. The owner is renderer-supplied (in remote mode it comes from
+  // the remote backend's session record), so only a profile NAME may reach the
+  // join: anything else would escape profiles/ and be created + revealed.
+  async function localPluginsRoot(dirName: string, owner?: unknown): Promise<string> {
+    const named = typeof owner === 'string' ? owner.trim() : ''
+
+    const profile =
+      named && (named === 'default' || DESKTOP_PROFILE_NAME_RE.test(named)) ? named : readActiveDesktopProfile()
+
     const base = profile && profile !== 'default' ? path.join(hermesHome, 'profiles', profile) : hermesHome
 
     return ensureDir(path.join(base, dirName))
@@ -121,6 +129,12 @@ export function registerFsIpc({
 
   ipcMain.handle('hermes:fs:desktopPluginsRoot', async () => desktopPluginsRoot())
 
+  ipcMain.handle('hermes:fs:desktopChromeRoot', async () => desktopChromeRoot(hermesHome))
+
+  ipcMain.handle('hermes:chrome:snapshot', async () => snapshotChrome(await desktopChromeRoot(hermesHome)))
+
+  ipcMain.handle('hermes:chrome:rollback', async () => rollbackChrome(await desktopChromeRoot(hermesHome)))
+
   // Re-run the unified-half reconcile on demand (after an agent-plugin install /
   // update / uninstall through the gateway) so the app-level copy tracks the
   // package without waiting for the next root resolution.
@@ -133,8 +147,11 @@ export function registerFsIpc({
   // The LOCAL logs root (`<HERMES_HOME>/logs`, profile-aware) — the error
   // card's "Open Logs" action reveals agent.log/gateway.log without the user
   // knowing where HERMES_HOME lives. Same Electron-local resolution as the
-  // plugin roots: valid in every connection mode, created on demand.
-  ipcMain.handle('hermes:fs:logsRoot', async () => localPluginsRoot('logs'))
+  // plugin roots: valid in every connection mode, created on demand. The
+  // caller names the profile that OWNS the failing session: a pooled backend
+  // serves many profile homes, and the active Desktop profile is the launch
+  // one, not the one whose agent.log holds the failure (#119080).
+  ipcMain.handle('hermes:fs:logsRoot', async (_event, profile) => localPluginsRoot('logs', profile))
 
   ipcMain.handle('hermes:plugin:probe', async (_event, payload) => {
     const identifier = String(payload?.identifier || payload?.repo || '').trim()

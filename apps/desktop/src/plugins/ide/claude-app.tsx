@@ -1,4 +1,4 @@
-import { cn, Codicon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, useValue } from '@hermes/plugin-sdk'
+import { cn, Codicon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, Tip, useValue } from '@hermes/plugin-sdk'
 import { useState } from 'react'
 
 import { AddRepoDialog } from './agent-panel'
@@ -86,8 +86,8 @@ export function ClaudeApp({ id, visible }: { id: string; visible: boolean }) {
             <IconBtn disabled={!a.hist.canFwd} onClick={a.hist.fwd}><Codicon name="arrow-right" size="0.9rem" /></IconBtn>
             <span className="flex-1" />
             <span className="flex items-center rounded-lg bg-[#1d1d1b] p-0.5">
-              <button className="grid size-6 place-items-center rounded-md text-(--ui-text-tertiary)" title="Chat (in the Claude app)" type="button"><Codicon name="comment-discussion" size="0.85rem" /></button>
-              <button className="grid size-6 place-items-center rounded-md bg-[#363636] text-foreground" title="Code" type="button"><Codicon name="code" size="0.85rem" /></button>
+              <Tip label="Chat (in the Claude app)"><button aria-label="Chat (in the Claude app)" className="grid size-6 place-items-center rounded-md text-(--ui-text-tertiary)" type="button"><Codicon name="comment-discussion" size="0.85rem" /></button></Tip>
+              <Tip label="Code"><button aria-label="Code" className="grid size-6 place-items-center rounded-md bg-[#363636] text-foreground" type="button"><Codicon name="code" size="0.85rem" /></button></Tip>
             </span>
           </div>
           <nav className="space-y-0.5 px-2 pt-1 text-[0.86rem]">
@@ -233,9 +233,9 @@ export function ClaudeApp({ id, visible }: { id: string; visible: boolean }) {
                     rows={1}
                     value={text}
                   />
-                  <button className="text-(--ui-text-tertiary) hover:text-foreground" onClick={a.session.busy ? a.session.stop : () => submit(text)} title={a.session.busy ? 'Stop' : 'Send'} type="button">
+                  <Tip label={a.session.busy ? 'Stop' : 'Send'}><button aria-label={a.session.busy ? 'Stop' : 'Send'} className="text-(--ui-text-tertiary) hover:text-foreground" onClick={a.session.busy ? a.session.stop : () => submit(text)} type="button">
                     {a.session.busy ? <Codicon name="debug-stop" size="1rem" /> : <span className="text-[1.05rem] leading-none">⏎</span>}
-                  </button>
+                  </button></Tip>
                 </div>
                 <div className="mt-2 flex items-center gap-1 px-1 text-[0.84rem] text-(--ui-text-secondary)">
                   <IconBtn onClick={() => void ideApi.fsFind(a.repo ?? '', '').then(async fs => { if (fs[0]) { const r = await ideApi.fsRead(fs[0]); a.setAttachments([...a.attachments, { kind: 'file', name: fs[0].split('/').pop() ?? 'file', text: r.text ?? '' }]) } })} title="Attach a file"><Codicon name="add" size="0.95rem" /></IconBtn>

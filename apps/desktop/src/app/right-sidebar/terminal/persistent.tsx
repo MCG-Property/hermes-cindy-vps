@@ -3,14 +3,15 @@ import { atom } from 'nanostores'
 import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { isElementInHiddenPane, PANE_HIDDEN_ATTR } from '@/components/pane-shell/pane-visibility'
-import { $layoutTree } from '@/components/pane-shell/tree/store'
+import { $layoutTree, revealTreePane } from '@/components/pane-shell/tree/store'
 import { markRightPanePerf } from '@/debug/right-pane-events'
 import { createRendererLoopPauseController } from '@/lib/renderer-loop-pause'
 import { $paneStates } from '@/store/panes'
 
 import { $terminalTakeover } from '../store'
 
-import { ensureTerminal } from './terminals'
+import { type OverlayRect, stabilizeOverlayRect } from './overlay-rect'
+import { ensureTerminal, restorePersistedTerminalPane } from './terminals'
 import { TerminalWorkspace } from './workspace'
 
 /**
@@ -50,13 +51,7 @@ interface PersistentTerminalProps {
   onAddSelectionToChat: (text: string, label?: string) => void
 }
 
-interface Rect {
-  hidden: boolean
-  top: number
-  left: number
-  width: number
-  height: number
-}
+type Rect = OverlayRect
 
 const sameRect = (a: Rect | null, b: Rect) =>
   !!a && a.hidden === b.hidden && a.top === b.top && a.left === b.left && a.width === b.width && a.height === b.height
@@ -73,6 +68,12 @@ export function PersistentTerminal({ onAddSelectionToChat }: PersistentTerminalP
   // down. Only an explicit per-tab close kills a PTY. Re-opening re-ensures one
   // terminal exists (covers having closed the last tab).
   const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    if (restorePersistedTerminalPane()) {
+      revealTreePane('terminal')
+    }
+  }, [])
 
   useEffect(() => {
     if (terminalTakeover && ready) {
@@ -134,13 +135,13 @@ export function PersistentTerminal({ onAddSelectionToChat }: PersistentTerminalP
 
       // Inactive keep-alive panes deliberately retain the same rect as the
       // foreground pane, so visibility must be sampled independently.
-      const next: Rect = {
+      const next = stabilizeOverlayRect(prev, {
         hidden: isElementInHiddenPane(slot),
         top,
         left,
         width: Math.ceil(r.right) - left,
         height: Math.ceil(r.bottom) - top
-      }
+      })
 
       if (!sameRect(prev, next)) {
         prev = next

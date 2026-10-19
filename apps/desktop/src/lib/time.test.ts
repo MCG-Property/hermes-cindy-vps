@@ -6,6 +6,7 @@ import {
   fmtMonth,
   fmtMonthYear,
   formatAgo,
+  formatSydneyStamp,
   HOUR,
   MINUTE,
   nominalDayStart,
@@ -23,6 +24,13 @@ const labels = {
 
 const now = 1_000 * DAY
 const ago = (delta: number) => formatAgo(now - delta, labels, now)
+
+describe('formatSydneyStamp', () => {
+  it('renders dd:mm:yy hh:mm:ss in Australia/Sydney', () => {
+    // 2026-09-13 19:15:00 UTC = 2026-09-14 05:15:00 AEST (UTC+10)
+    expect(formatSydneyStamp(Date.UTC(2026, 8, 13, 19, 15, 0))).toBe('14:09:26 05:15:00')
+  })
+})
 
 describe('formatAgo', () => {
   it('reads "now" under two seconds, then seconds', () => {

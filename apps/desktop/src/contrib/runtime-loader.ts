@@ -34,6 +34,7 @@
 
 import { atom } from 'nanostores'
 
+import { isReadFileErrorResult } from '@/lib/desktop-fs'
 import { installPluginSdk, sdkImportMap } from '@/sdk/runtime'
 import { notifyError } from '@/store/notifications'
 
@@ -64,6 +65,10 @@ const loaded = new Map<string, (() => void)[]>()
  *  and, through the disk scan's sequential loop, every plugin listed after it. */
 const IMPORT_TIMEOUT_MS = 10_000
 
+/** Last source that registered without throwing. A bad hot-edit restores this
+ *  instead of leaving the slot empty. */
+const lastGoodSource = new Map<string, string>()
+
 // Matches the specifier of a static `from '…'`, a side-effect `import '…'`, or
 // a dynamic `import('…')`. Deliberately loose — a sentence ending in `from`, a
 // quoted example, a commented-out import all match it — so a match is honoured
@@ -75,7 +80,101 @@ const importSpecifierRe = () => /(from\s*|import\s*\(\s*|import\s+)(['"])([^'"]+
  *  specifier regex is not syntax-aware, so this is what keeps a plugin's own
  *  copy and comments — `const label = 'Copy keys from'`, `// import 'x'` —
  *  from being read as import syntax (rejected as "unsupported import") or
- *  rewritten in place (a mapped specifier inside a string must stay verbatim). */
+ *  rewritten in place (a mapped specifier inside a string must stay verbatim).
+ *  Regex literals are excluded too: a quote or backtick inside a pattern
+ *  (#120208) must not open a string/template state. */
+
+/** Keywords after which a `/` opens a regex literal, never a division. */
+const regexKeywordRe = /^(?:await|case|delete|do|else|in|instanceof|new|of|return|throw|typeof|void|yield)$/
+
+/** True when the `/` at `slash` (already known not to start `//` or `/*`)
+ *  opens a regex literal: the previous significant char cannot end a value.
+ *  Standard division-vs-regex heuristic. */
+function isRegexStart(source: string, slash: number): boolean {
+  let j = slash - 1
+
+  while (j >= 0 && /\s/.test(source[j])) {
+    j -= 1
+  }
+
+  if (j < 0) {
+    return true
+  }
+
+  const prev = source[j]
+
+  // Postfix `++`/`--` ends a value (division); a lone `+`/`-` cannot.
+  if (prev === '+' || prev === '-') {
+    return source[j - 1] !== prev
+  }
+
+  // Identifier, number, string/template end, `)` or `]` end a value.
+  if (prev === ')' || prev === ']' || prev === "'" || prev === '"' || prev === '`') {
+    return false
+  }
+
+  // Block-end `}` resolves toward regex — `} /re/` (statement-start
+  // pattern) is real code, `} / 2` (dividing a block) is not. Revisit if a
+  // plugin ever divides a block result.
+  if (prev === '}') {
+    return true
+  }
+
+  if (/[A-Za-z0-9_$]/.test(prev)) {
+    let k = j
+
+    while (k >= 0 && /[A-Za-z0-9_$]/.test(source[k])) {
+      k -= 1
+    }
+
+    // `x.return / 2` divides a property, it is not `return /re/`.
+    if (source[k] === '.') {
+      return false
+    }
+
+    return regexKeywordRe.test(source.slice(k + 1, j + 1))
+  }
+
+  return true
+}
+
+/** End offset (exclusive) of the regex literal opened at `slash`, or -1 when
+ *  the pattern never closes on this line (so the `/` was a division).
+ *  Escapes and `[...]` classes are honored so a quote or backtick inside the
+ *  pattern (#120208) cannot leak into the surrounding lex. */
+function regexEnd(source: string, slash: number): number {
+  let j = slash + 1
+  let inClass = false
+
+  while (j < source.length) {
+    const c = source[j]
+
+    if (c === '\\') {
+      j += 2
+    } else if (c === '\n') {
+      return -1
+    } else if (c === '[') {
+      inClass = true
+      j += 1
+    } else if (c === ']') {
+      inClass = false
+      j += 1
+    } else if (c === '/' && !inClass) {
+      j += 1
+
+      while (j < source.length && /[A-Za-z]/.test(source[j])) {
+        j += 1
+      }
+
+      return j
+    } else {
+      j += 1
+    }
+  }
+
+  return -1
+}
+
 function codeRanges(source: string): Array<[number, number]> {
   const ranges: Array<[number, number]> = []
   const stack: Array<'expr' | 'template'> = []
@@ -115,6 +214,21 @@ function codeRanges(source: string): Array<[number, number]> {
         stack.push('template')
         state = 'template'
         i += 1
+      } else if (ch === '/') {
+        // A lone `/` (not `//` or `/*`, handled above) opens a regex literal
+        // when the previous significant token cannot end a value (#120208).
+        // Otherwise it is a division and stays plain code.
+        const end = isRegexStart(source, i) ? regexEnd(source, i) : -1
+
+        if (end > 0) {
+          // The pattern is not code: import-looking text inside it must
+          // neither match nor be rewritten in place.
+          closeCode(i)
+          i = end
+          codeStart = i
+        } else {
+          i += 1
+        }
       } else if (ch === '}' && stack[stack.length - 1] === 'expr') {
         closeCode(i)
         stack.pop()
@@ -248,8 +362,23 @@ function unsupportedImports(source: string): string[] {
 }
 
 export function unloadRuntimePlugin(id: string): void {
-  loaded.get(id)?.forEach(dispose => dispose())
+  const disposers = loaded.get(id)
+
+  // Released BEFORE the disposers run, and each disposer in its own
+  // try/catch: a disposer with its own bug must not wedge the registry
+  // (#126338). With a bare forEach the throw aborted the loop and stranded
+  // the delete, so every later reload re-ran the same broken disposers and
+  // died before the fresh register() — file edits looked inert until an
+  // app restart.
   loaded.delete(id)
+
+  disposers?.forEach(dispose => {
+    try {
+      dispose()
+    } catch (error) {
+      console.error(`[plugins] ${id}: disposer failed during unload`, error)
+    }
+  })
 }
 
 /** Evaluate + register one runtime plugin. Returns its id, or null on failure. */
@@ -341,13 +470,16 @@ export async function loadRuntimePlugin(
       packageOrigin: options.packageOrigin
     }
 
-    const failRegistration = (disposers: (() => void)[], error: unknown) => {
+    const failRegistration = (error: unknown) => {
       // Roll back everything register() managed before it failed — a
       // half-registered plugin must not leave live contributions/listeners
       // nobody can ever dispose — and land the failure on the plugin's OWN
       // row so Capabilities → Plugins shows it (the toggle stays usable).
-      disposers.forEach(dispose => dispose())
-      loaded.delete(plugin.id)
+      // unloadRuntimePlugin() tolerates a throwing disposer, so a cleanup
+      // bug in the rollback can neither strand the remaining disposers nor
+      // hold the registration — the #126338 wedge where every later reload
+      // re-ran the same broken disposers instead of the fixed file.
+      unloadRuntimePlugin(plugin.id)
       console.error(`[plugins] ${plugin.id} failed to register (${origin})`, error)
       notifyError(error, `Plugin "${record.name}" failed to register`)
       publishPlugin({ ...record, status: 'error', error: error instanceof Error ? error.message : String(error) })
@@ -355,6 +487,8 @@ export async function loadRuntimePlugin(
 
     const activate = () => {
       // Reload = dispose the previous incarnation, then register fresh.
+      // If register throws, restore the last source that succeeded so a
+      // hot-edit cannot empty the slot.
       unloadRuntimePlugin(plugin.id)
       const disposers: (() => void)[] = []
       // Registered BEFORE register() runs so a throw mid-way is disposable.
@@ -368,11 +502,24 @@ export async function loadRuntimePlugin(
           () => plugin.register(createPluginContext(plugin.id, dispose => disposers.push(dispose)))
         )
       } catch (error) {
-        failRegistration(disposers, error)
+        // A bad hot-edit restores the last source that registered without
+        // throwing, instead of leaving the plugin's slot empty.
+        const fallback = lastGoodSource.get(plugin.id)
+
+        if (fallback && fallback !== source) {
+          failRegistration(error)
+          notifyError(error, `Plugin "${origin}" failed; restored last-known-good`)
+          void loadRuntimePlugin(fallback, origin, options)
+
+          return
+        }
+
+        failRegistration(error)
 
         return
       }
 
+      lastGoodSource.set(plugin.id, source)
       publishPlugin({ ...record, status: 'loaded' })
 
       // An `async register()` that rejects would otherwise be an unhandled
@@ -380,7 +527,7 @@ export async function loadRuntimePlugin(
       if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
         void Promise.resolve(result).catch((error: unknown) => {
           if (loaded.get(plugin.id) === disposers) {
-            failRegistration(disposers, error)
+            failRegistration(error)
           }
         })
       }
@@ -459,6 +606,8 @@ async function diskRoots(): Promise<DiskRoot[]> {
 const PACKAGE_MARKER = '.hermes-package.json'
 
 interface PackageMarker {
+  /** The package is a symlinked dev checkout; `source` is its `desktop/` dir. */
+  linkedSource?: string
   origin?: { catalogName?: string; repo?: string; sha?: string }
   package: string
 }
@@ -472,11 +621,19 @@ async function readPackageMarker(desktop: Window['hermesDesktop'], folder: strin
       return null
     }
 
-    const parsed = JSON.parse((await desktop.readFileText(marker.path)).text) as {
+    const read = await desktop.readFileText(marker.path)
+
+    if (isReadFileErrorResult(read)) {
+      return null
+    }
+
+    const parsed = JSON.parse(read.text) as {
       catalogName?: string
+      linked?: boolean
       package?: string
       repo?: string
       sha?: string
+      source?: string
     }
 
     if (!parsed.package) {
@@ -484,6 +641,7 @@ async function readPackageMarker(desktop: Window['hermesDesktop'], folder: strin
     }
 
     return {
+      linkedSource: parsed.linked && parsed.source ? parsed.source : undefined,
       origin: parsed.repo ? { catalogName: parsed.catalogName, repo: parsed.repo, sha: parsed.sha } : undefined,
       package: parsed.package
     }
@@ -503,6 +661,10 @@ interface DiskPlugin {
   id: null | string
   /** Origin label (folder name) — the toast/inventory name for load errors. */
   origin: string
+  /** Linked dev package only: the SOURCE `desktop/plugin.js` this copy came from. */
+  sourceFile?: string
+  /** Watch on `sourceFile` — a save re-syncs the copy, then reloads it. */
+  sourceWatchId?: null | string
   watchId: null | string
 }
 
@@ -541,6 +703,10 @@ async function readPluginSourceText(file: string): Promise<string> {
   }
 
   const result = await desktop.readFileText(file)
+
+  if (isReadFileErrorResult(result)) {
+    throw new Error(result.message || `Plugin read failed: ${result.error}`)
+  }
 
   if (result.truncated) {
     throw new PluginSourceOversizeError(
@@ -653,10 +819,57 @@ async function watchDiskPluginFile(desktop: NonNullable<Window['hermesDesktop']>
   }
 
   try {
-    record.watchId = (await desktop.watchPreviewFile(record.file)).id
+    const watch = await desktop.watchPreviewFile(record.file)
+
+    // Structured "folder gone" answer — nothing to watch; the poll still
+    // reconciles new folders and edits need a manual reload.
+    record.watchId = isReadFileErrorResult(watch) ? null : watch.id
   } catch {
     // Unwatchable — the poll still reconciles new folders; edits need a
     // manual "Reload desktop plugins".
+  }
+}
+
+/** Watch a linked dev package's SOURCE `plugin.js`. Without it the developer
+ *  edits their checkout while the app keeps running the copy in
+ *  `desktop-plugins/` — the copy is only refreshed on Rescan or restart. */
+async function watchDiskPluginSource(desktop: NonNullable<Window['hermesDesktop']>, record: DiskPlugin): Promise<void> {
+  if (!record.sourceFile || record.sourceWatchId) {
+    return
+  }
+
+  try {
+    const watch = await desktop.watchPreviewFile(record.sourceFile)
+
+    record.sourceWatchId = isReadFileErrorResult(watch) ? null : watch.id
+  } catch {
+    record.sourceWatchId = null
+  }
+}
+
+/** A linked source changed: copy it over the app-root half (Electron's
+ *  reconcile — the one writer of that folder), then reload every copy that
+ *  pass replaced and re-bind its watch, which the folder swap orphaned. */
+async function resyncLinkedDiskPlugins(): Promise<void> {
+  const desktop = window.hermesDesktop
+
+  if (!desktop?.reconcileDesktopPlugins) {
+    return
+  }
+
+  const touched = new Set((await desktop.reconcileDesktopPlugins().catch(() => [])) ?? [])
+
+  for (const record of disk.values()) {
+    // The folder of `<root>/<name>/plugin.js`, either separator (Windows paths).
+    if (!touched.has(record.file.replace(/[\\/][^\\/]*$/, ''))) {
+      continue
+    }
+
+    if (await loadDiskPlugin(record)) {
+      await watchDiskPluginFile(desktop, record)
+    } else {
+      void scanDiskPlugins()
+    }
   }
 }
 
@@ -733,6 +946,8 @@ async function scanDiskPlugins(reloadKnown = false): Promise<void> {
           origin: dir.name,
           packageName: marker?.package,
           packageOrigin: marker?.origin,
+          sourceFile: marker?.linkedSource ? `${marker.linkedSource}/plugin.js` : undefined,
+          sourceWatchId: null,
           watchId: null
         }
 
@@ -745,6 +960,7 @@ async function scanDiskPlugins(reloadKnown = false): Promise<void> {
         }
 
         await watchDiskPluginFile(desktop, record)
+        await watchDiskPluginSource(desktop, record)
       }
     }
 
@@ -775,6 +991,10 @@ function retireDiskPlugin(file: string, record: DiskPlugin): void {
 
   if (record.watchId) {
     void window.hermesDesktop?.stopPreviewFileWatch(record.watchId)
+  }
+
+  if (record.sourceWatchId) {
+    void window.hermesDesktop?.stopPreviewFileWatch(record.sourceWatchId)
   }
 
   disk.delete(file)
@@ -843,6 +1063,12 @@ export function watchRuntimePlugins(): void {
     }
 
     for (const record of disk.values()) {
+      if (record.sourceWatchId === id) {
+        void resyncLinkedDiskPlugins()
+
+        return
+      }
+
       if (record.watchId === id) {
         void loadDiskPlugin(record).then(readable => {
           if (!readable) {

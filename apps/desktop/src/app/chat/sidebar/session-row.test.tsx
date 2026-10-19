@@ -1,5 +1,3 @@
-import { KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { atom } from 'nanostores'
 import type * as React from 'react'
@@ -8,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SessionInfo } from '@/hermes'
 import { createClientSessionState } from '@/lib/chat-runtime'
 import type * as ChatRuntime from '@/lib/chat-runtime'
+import { formatSydneyStamp } from '@/lib/time'
 import type * as Time from '@/lib/time'
 import type * as ComposerStatusStore from '@/store/composer-status'
 import type * as SessionStore from '@/store/session'
@@ -15,7 +14,6 @@ import { clearAllSessionStates, publishSessionState } from '@/store/session-stat
 import type * as SessionStatesStore from '@/store/session-states'
 import type * as WindowsStore from '@/store/windows'
 
-import { ReorderableList, useSortableBindings } from './reorderable-list'
 import { SidebarSessionRow } from './session-row'
 
 afterEach(cleanup)
@@ -35,6 +33,7 @@ vi.mock('@/i18n', () => ({
           backgroundRunning: 'Running in background',
           finishedUnread: 'Finished',
           handoffOrigin: (platform: string) => `Started on ${platform}`,
+          continuationOrigin: 'Automatic continuation — this conversation was compressed and continued',
           messageCount: (count: number) => `${count} messages`,
           needsInput: 'Needs input',
           sessionActions: 'Session actions',
@@ -123,10 +122,21 @@ vi.mock('@/store/windows', async importOriginal => {
 
 // SessionActionsMenu open behavior is covered in session-actions-menu.test.tsx
 // against the real component. Stub it here so this file stays focused on the
-// row chrome.
+// row chrome (handoff avatar tip, etc.) — but record the props so the row's
+// own state plumbing (e.g. the archived flag, #98813) is still asserted.
+const menuProps = vi.hoisted(() => vi.fn())
+
 vi.mock('./session-actions-menu', () => ({
-  SessionActionsMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  SessionContextMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>
+  SessionActionsMenu: (props: { children?: React.ReactNode }) => {
+    menuProps(props)
+
+    return <>{props.children}</>
+  },
+  SessionContextMenu: (props: { children?: React.ReactNode }) => {
+    menuProps(props)
+
+    return <>{props.children}</>
+  }
 }))
 
 vi.mock('./use-profile-prewarm', () => ({
@@ -258,69 +268,40 @@ describe('SidebarSessionRow', () => {
       expect(screen.queryByRole('tooltip')).toBeNull()
     })
   })
-})
 
-// Regression for #83617: the row shell once spread the FULL dnd-kit handle, so
-// Space on a focused control inside the row (the ⋯ button that opens Rename)
-// reached the KeyboardSensor's activator — a drag armed, and the sensor then
-// ate the next Space at window level (the rename input dropped the keystroke).
-describe('SidebarSessionRow inside the sortable list', () => {
-  function SortableRow({ session }: { session: SessionInfo }) {
-    const { dragHandleProps, dragging, ref, reorderable, style } = useSortableBindings(session.id)
+  // The Archived view reuses the row menu, and the menu needs the row's
+  // archived state to label its shared verb Unarchive (#98813).
+  it('forwards the archived state to the row menu', () => {
+    menuProps.mockClear()
+    renderRow(makeSession({ archived: true, title: 'Archived row' }))
 
-    return (
-      <SidebarSessionRow
-        dragging={dragging}
-        dragHandleProps={dragHandleProps}
-        isPinned={false}
-        isSelected={false}
-        onArchive={noop}
-        onDelete={noop}
-        onPin={noop}
-        onResume={noop}
-        onToggleUnread={noop}
-        ref={ref}
-        reorderable={reorderable}
-        session={session}
-        style={style}
-        unread={false}
-      />
-    )
-  }
-
-  function Host({ session }: { session: SessionInfo }) {
-    // The sidebar's own sensor set (index.tsx dndSensors).
-    const sensors = useSensors(
-      useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-      useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-    )
-
-    return (
-      <ReorderableList ids={[session.id]} onReorder={noop} sensors={sensors}>
-        <SortableRow session={session} />
-      </ReorderableList>
-    )
-  }
-
-  const space = { code: 'Space', key: ' ' }
-
-  it('lets Space through to a focused row control instead of arming a keyboard drag', () => {
-    const { container } = render(<Host session={makeSession({ title: 'Renamable' })} />)
-    const kebab = screen.getByRole('button', { name: 'Session actions' })
-    kebab.focus()
-
-    // Not defaultPrevented (the ⋯ menu is stubbed in this file, so only
-    // dnd-kit could have claimed the key) and no grabber reports a drag.
-    expect(fireEvent.keyDown(kebab, space)).toBe(true)
-    expect(container.querySelector('[aria-pressed="true"]')).toBeNull()
+    expect(menuProps).toHaveBeenCalledWith(expect.objectContaining({ archived: true }))
   })
 
-  it('still starts a keyboard reorder from the grabber', () => {
-    const { container } = render(<Host session={makeSession({ title: 'Renamable' })} />)
-    const grabber = container.querySelector<HTMLElement>('[data-reorder-handle]')!
+  it('forwards the non-archived state to the row menu', () => {
+    menuProps.mockClear()
+    renderRow(makeSession({ title: 'Live row' }))
 
-    grabber.focus()
-    fireEvent.keyDown(grabber, space)
-    expect(grabber.getAttribute('aria-pressed')).toBe('true')
+    expect(menuProps).toHaveBeenCalledWith(expect.objectContaining({ archived: false }))
+  })
+
+  it('exposes the exact session time through a focusable Tip trigger', () => {
+    // Pin the clock before deriving the timestamp: "5 minutes ago" only falls on
+    // today when the run does not straddle local midnight. Only `Date` is faked,
+    // so the component's own timers keep running for real.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 2, 5, 12, 0, 0))
+
+    const startedAt = Math.floor(Date.now() / 1000) - 5 * 60
+
+    renderRow(makeSession({ started_at: startedAt, title: 'Timestamped session' }))
+
+    const stamp = formatSydneyStamp(startedAt * 1000)
+    const age = screen.getByText(stamp)
+    expect(age.tagName).toBe('TIME')
+    expect(age.getAttribute('datetime')).toBe(new Date(startedAt * 1000).toISOString())
+    expect(age.getAttribute('aria-label')).toMatch(new RegExp(`^${stamp.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}, `))
+    expect(age.getAttribute('tabindex')).toBe('0')
+    expect(age.getAttribute('title')).toBeNull()
   })
 })

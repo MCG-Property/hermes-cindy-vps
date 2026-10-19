@@ -1,19 +1,20 @@
-"""git-autocommit plugin — snapshots the hermes-agent repo on session finalize.
+"""git-autocommit plugin — snapshots hermes-agent-runtime on session finalize.
 
 Wires one behaviour:
 
-* ``on_session_finalize`` hook — fires whenever any Hermes session ends
-  (shutdown, expiry, reset). Checks the main hermes-agent repo and its
-  private submodule for uncommitted changes; if either is dirty, commits
-  and pushes. Clean trees are a no-op (checked via `git status --porcelain`
-  before doing anything), so this never creates empty commits and never
-  fires on every session -- only on sessions that actually changed files
-  under version control.
+* ``on_session_finalize`` hook -- fires whenever any Hermes session ends
+  (shutdown, expiry, reset). Checks the live hermes-agent-runtime checkout
+  for uncommitted changes; if dirty, commits and pushes.
+
+IMPORTANT: this checkout's HEAD is intentionally detached and tracks
+upstream NousResearch/hermes-agent commits directly (auto-update pattern).
+Auto-commits push to the ``cam-douglas`` remote's ``main`` branch -- never
+to ``origin`` (that's the public upstream project). Per-feature side
+branches (``campbell/local-patches``, ``campbell/runtime-autocommits``, etc.)
+are retired; everything lands on ``main`` going forward.
 
 Failure handling: every git operation is wrapped and logged, never raised.
-A push failing (network down, credentials not configured yet, remote
-rejected) must not block or crash session finalization -- worst case the
-commit lands locally and the next successful run pushes it too.
+A push failing must not block or crash session finalization.
 """
 
 from __future__ import annotations
@@ -25,9 +26,9 @@ from typing import Any, List, Optional
 
 logger = logging.getLogger(__name__)
 
-_MAIN_REPO = Path("/root/hermes-agent")
-_SUBMODULE_REL = "hermes-agent-cindy-droplet-private"
-_SUBMODULE_REPO = _MAIN_REPO / _SUBMODULE_REL
+_REPO = Path("/home/hermes/.hermes/hermes-agent-runtime")
+_PUSH_REMOTE = "cam-douglas"
+_PUSH_REFSPEC = "HEAD:refs/heads/main"
 
 _GIT_TIMEOUT = 30
 
@@ -42,12 +43,12 @@ def _run(args: List[str], cwd: Path) -> Optional[str]:
             timeout=_GIT_TIMEOUT,
         )
     except Exception as exc:
-        logger.warning("git-autocommit: `git %s` in %s failed to run: %s", " ".join(args), cwd, exc)
+        logger.warning("git-autocommit: `git %s` failed to run: %s", " ".join(args), exc)
         return None
     if result.returncode != 0:
         logger.warning(
-            "git-autocommit: `git %s` in %s exited %d: %s",
-            " ".join(args), cwd, result.returncode, result.stderr.strip()[:500],
+            "git-autocommit: `git %s` exited %d: %s",
+            " ".join(args), result.returncode, result.stderr.strip()[:500],
         )
         return None
     return result.stdout
@@ -58,41 +59,28 @@ def _is_dirty(repo: Path) -> bool:
     return bool(out and out.strip())
 
 
-def _commit_and_push(repo: Path, message: str) -> bool:
-    if _run(["add", "-A"], repo) is None:
-        return False
-    if _run(["commit", "-m", message], repo) is None:
-        return False
-    if _run(["push", "origin", "HEAD"], repo) is None:
-        logger.warning("git-autocommit: committed locally in %s but push failed (will retry next session)", repo)
-        return False
-    return True
-
-
 def _on_session_finalize(
     session_id: Any = None,
     platform: Any = None,
     reason: Any = None,
     **_: Any,
 ) -> None:
-    if not _MAIN_REPO.exists():
+    if not _REPO.exists() or not _is_dirty(_REPO):
         return
 
     label = f"session={session_id} platform={platform} reason={reason}"
 
-    submodule_changed = False
-    if _SUBMODULE_REPO.exists() and _is_dirty(_SUBMODULE_REPO):
-        submodule_changed = _commit_and_push(
-            _SUBMODULE_REPO, f"Auto-commit: session finalize ({label})"
+    if _run(["add", "-A"], _REPO) is None:
+        return
+    if _run(["commit", "-m", f"Auto-commit: session finalize ({label})"], _REPO) is None:
+        return
+    if _run(["push", _PUSH_REMOTE, _PUSH_REFSPEC], _REPO) is None:
+        logger.warning(
+            "git-autocommit: committed locally but push to %s %s failed "
+            "(will retry next session)", _PUSH_REMOTE, _PUSH_REFSPEC,
         )
-        if submodule_changed:
-            logger.info("git-autocommit: pushed submodule changes (%s)", label)
-
-    # If the submodule advanced, the parent repo's gitlink needs a follow-up
-    # commit even if nothing else in the main tree changed.
-    if submodule_changed or _is_dirty(_MAIN_REPO):
-        if _commit_and_push(_MAIN_REPO, f"Auto-commit: session finalize ({label})"):
-            logger.info("git-autocommit: pushed main repo changes (%s)", label)
+        return
+    logger.info("git-autocommit: pushed to %s %s (%s)", _PUSH_REMOTE, _PUSH_REFSPEC, label)
 
 
 def register(ctx) -> None:

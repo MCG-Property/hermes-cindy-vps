@@ -1,4 +1,4 @@
-import { cn, Codicon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, host, useValue } from '@hermes/plugin-sdk'
+import { cn, Codicon, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, host, Tip, useValue } from '@hermes/plugin-sdk'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AddRepoDialog, useWidth } from './agent-panel'
@@ -96,12 +96,12 @@ function Sidebar({
         <>
           <span className="ml-auto text-[0.72rem] text-(--ui-text-tertiary) group-hover:hidden">{ago(c.updated)}</span>
           <span className="ml-auto hidden items-center gap-1 text-(--ui-text-tertiary) group-hover:flex">
-            <button className="hover:text-foreground" onClick={e => { e.stopPropagation(); void ideApi.patchChat(c.id, { pinned: !c.pinned }).then(() => refresh()) }} title={c.pinned ? 'Unpin' : 'Pin'} type="button">
+            <Tip label={c.pinned ? 'Unpin' : 'Pin'}><button aria-label={c.pinned ? 'Unpin' : 'Pin'} className="hover:text-foreground" onClick={e => { e.stopPropagation(); void ideApi.patchChat(c.id, { pinned: !c.pinned }).then(() => refresh()) }} type="button">
               <Codicon name={c.pinned ? 'pinned' : 'pin'} size="0.75rem" />
-            </button>
-            <button className="hover:text-red-400" onClick={e => { e.stopPropagation(); void ideApi.deleteChat(c.id).then(() => refresh()) }} title="Delete" type="button">
+            </button></Tip>
+            <Tip label="Delete"><button aria-label="Delete" className="hover:text-red-400" onClick={e => { e.stopPropagation(); void ideApi.deleteChat(c.id).then(() => refresh()) }} type="button">
               <Codicon name="trash" size="0.75rem" />
-            </button>
+            </button></Tip>
           </span>
         </>
       }
@@ -138,9 +138,9 @@ function Sidebar({
         <>
         <div className="flex items-center justify-between px-2 pt-3 pb-1 text-[0.72rem] text-(--ui-text-tertiary)">
           <span>Projects</span>
-          <button className="grid size-5 place-items-center rounded hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={() => setNewProject(v => !v)} title="New project" type="button">
+          <Tip label="New project"><button aria-label="New project" className="grid size-5 place-items-center rounded hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={() => setNewProject(v => !v)} type="button">
             <Codicon name="add" size="0.8rem" />
-          </button>
+          </button></Tip>
         </div>
         {newProject ? (
           <div className="mb-2 rounded-lg border border-(--ui-stroke-tertiary) p-2">
@@ -190,9 +190,9 @@ function Sidebar({
           <>
             <div className="flex items-center justify-between px-2 pt-3 pb-1 text-[0.72rem] text-(--ui-text-tertiary)">
               <span>{skin.sectionLabel}</span>
-              <button className="grid size-5 place-items-center rounded hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={onAddRepo} title="Add repository" type="button">
+              <Tip label="Add repository"><button aria-label="Add repository" className="grid size-5 place-items-center rounded hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={onAddRepo} type="button">
                 <Codicon name="new-folder" size="0.8rem" />
-              </button>
+              </button></Tip>
             </div>
             {(['Today', 'Yesterday', 'Previous 7 days', 'Older'] as const).map(b => {
               const rows = mine.filter(c => !c.pinned && dateBucket(c.updated) === b).sort((x, y) => y.updated - x.updated)
@@ -211,12 +211,12 @@ function Sidebar({
         <div className="flex items-center justify-between px-2 pt-3 pb-1 text-[0.72rem] text-(--ui-text-tertiary)">
           <span>{skin.sectionLabel}</span>
           <span className="flex items-center gap-0.5">
-            <button className={cn('grid size-5 place-items-center rounded hover:bg-(--chrome-action-hover) hover:text-foreground', project && 'text-sky-300')} onClick={() => setProject(null)} title="Clear project filter" type="button">
+            <Tip label="Clear project filter"><button aria-label="Clear project filter" className={cn('grid size-5 place-items-center rounded hover:bg-(--chrome-action-hover) hover:text-foreground', project && 'text-sky-300')} onClick={() => setProject(null)} type="button">
               <Codicon name="filter" size="0.8rem" />
-            </button>
-            <button className="grid size-5 place-items-center rounded hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={onAddRepo} title="Add repository" type="button">
+            </button></Tip>
+            <Tip label="Add repository"><button aria-label="Add repository" className="grid size-5 place-items-center rounded hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={onAddRepo} type="button">
               <Codicon name="new-folder" size="0.8rem" />
-            </button>
+            </button></Tip>
           </span>
         </div>
         {shownRepos.map(r => {
@@ -229,9 +229,9 @@ function Sidebar({
                 icon={repo === r.path ? 'folder-opened' : 'folder'}
                 onClick={() => $repo.set(r.path)}
                 right={
-                  <button className="ml-auto hidden text-(--ui-text-tertiary) group-hover:block hover:text-foreground" onClick={e => { e.stopPropagation(); onNew(r.path) }} title="New chat here" type="button">
+                  <Tip label="New chat here"><button aria-label="New chat here" className="ml-auto hidden text-(--ui-text-tertiary) group-hover:block hover:text-foreground" onClick={e => { e.stopPropagation(); onNew(r.path) }} type="button">
                     <Codicon name="add" size="0.8rem" />
-                  </button>
+                  </button></Tip>
                 }
               >
                 <span className={cn('truncate', repo === r.path && 'text-foreground')}>{r.name}</span>
@@ -246,9 +246,9 @@ function Sidebar({
       <div className="flex h-12 shrink-0 items-center gap-2.5 px-3">
         <span className="grid size-6 place-items-center rounded-full bg-gradient-to-br from-sky-300 to-slate-600 text-[0.7rem] font-semibold text-slate-900">C</span>
         <span className="flex-1 text-[0.84rem]">Cam</span>
-        <button className="grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={onCustomize} title="Settings" type="button">
+        <Tip label="Settings"><button aria-label="Settings" className="grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={onCustomize} type="button">
           <Codicon name="settings-gear" size="0.9rem" />
-        </button>
+        </button></Tip>
       </div>
     </div>
   )
@@ -295,9 +295,9 @@ export function RightPane({ browserUrl, onBrowserUrl, repo, skin, tabs, setTabs,
           ))}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="grid size-7 shrink-0 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" title="Open tab" type="button">
+              <Tip label="Open tab"><button aria-label="Open tab" className="grid size-7 shrink-0 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" type="button">
                 <Codicon name="add" size="0.9rem" />
-              </button>
+              </button></Tip>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
               {skin.pane.map(k => (
@@ -590,9 +590,9 @@ export function DesktopApp({ agent, id, visible }: { agent: AgentId; id: string;
       ) : null}
       <div className="flex min-h-0 min-w-[300px] flex-1 flex-col">
         <div className="flex h-10 shrink-0 items-center gap-1 px-2">
-          <button className="grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={() => setSideOpen(o => !o)} title="Toggle sidebar" type="button">
+          <Tip label="Toggle sidebar"><button aria-label="Toggle sidebar" className="grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={() => setSideOpen(o => !o)} type="button">
             <Codicon name="layout-sidebar-left" size="0.9rem" />
-          </button>
+          </button></Tip>
           <button className="grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) disabled:opacity-30" disabled={hi <= 0} onClick={() => { setHi(hi - 1); setChat(hist[hi - 1], false) }} type="button">
             <Codicon name="arrow-left" size="0.9rem" />
           </button>
@@ -604,14 +604,14 @@ export function DesktopApp({ agent, id, visible }: { agent: AgentId; id: string;
             <Codicon className="text-(--ui-text-tertiary)" name="device-desktop" size="0.8rem" />
           </span>
           <span className="flex-1" />
-          <button
+          <Tip label="Open this repository in a desktop editor on this machine"><button
+            aria-label="Open this repository in a desktop editor on this machine"
             className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-[0.78rem] text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-foreground"
             onClick={() => repo && void ideApi.openInEditor(repo).catch(e => window.alert(e instanceof Error ? e.message : String(e)))}
-            title="Open this repository in a desktop editor on this machine"
             type="button"
           >
             IDE <Codicon name="link-external" size="0.75rem" />
-          </button>
+          </button></Tip>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" type="button">
@@ -627,9 +627,9 @@ export function DesktopApp({ agent, id, visible }: { agent: AgentId; id: string;
               <DropdownMenuItem onSelect={() => cur && void ideApi.deleteChat(cur.id).then(() => { newChat(); void refresh() })}>Delete chat</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <button className={cn('grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)', paneOpen && 'bg-(--ui-bg-quaternary)')} onClick={() => setPaneOpen(o => !o)} title="Toggle right pane" type="button">
+          <Tip label="Toggle right pane"><button aria-label="Toggle right pane" className={cn('grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)', paneOpen && 'bg-(--ui-bg-quaternary)')} onClick={() => setPaneOpen(o => !o)} type="button">
             <Codicon name="layout-sidebar-right" size="0.9rem" />
-          </button>
+          </button></Tip>
         </div>
         {page === 'automations' ? (
           <div className="min-h-0 flex-1 overflow-y-auto"><AutomationsPage automations={ide?.automations ?? []} repos={ide?.repos ?? []} /></div>

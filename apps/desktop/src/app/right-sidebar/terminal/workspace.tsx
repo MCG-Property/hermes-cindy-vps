@@ -52,11 +52,13 @@ export function TerminalWorkspace({ onAddSelectionToChat }: TerminalWorkspacePro
         ) : (
           <TerminalInstance
             active={term.id === activeId}
+            cursorChatId={term.cursorChatId}
             cwd={term.cwd}
             id={term.id}
             key={term.id}
             onAddSelectionToChat={onAddSelectionToChat}
             restoreCwd={term.restoreCwd}
+            resumeOnCreate={term.resumeOnCreate}
             reviveBuffer={term.reviveBuffer}
           />
         )

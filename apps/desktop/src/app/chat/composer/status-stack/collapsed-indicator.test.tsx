@@ -55,8 +55,8 @@ describe('ComposerStatusStack collapsed todo indicator', () => {
       </MemoryRouter>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /Tasks 1\/1/ }))
-
+    // A fully completed list starts collapsed (the fork keeps a list open only while tasks are unfinished).
+    expect(screen.getByRole('button', { name: /Tasks 1\/1/ }).getAttribute('aria-expanded')).toBe('false')
     expect(screen.queryByText('Wire the status stack')).toBeNull()
     expect(screen.queryByRole('status')).toBeNull()
   })

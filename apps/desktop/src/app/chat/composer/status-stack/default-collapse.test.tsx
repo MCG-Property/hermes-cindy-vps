@@ -6,7 +6,7 @@ import { $backgroundStatusBySession } from '@/store/composer-status'
 import { $goalsBySession } from '@/store/goals'
 import { $sessionControlBySession } from '@/store/session-control'
 import { $subagentsBySession, upsertSubagent } from '@/store/subagents'
-import { $todosBySession } from '@/store/todos'
+import { $todosBySession, clearSessionTodos, restoreSessionTodosFromSnapshot } from '@/store/todos'
 
 import { QueuePanel } from '../queue-panel'
 
@@ -40,9 +40,32 @@ afterEach(() => {
   $sessionControlBySession.set({})
   $subagentsBySession.set({})
   $todosBySession.set({})
+  clearSessionTodos('owner')
 })
 
-it('auto-expands only todos and keeps other groups closed as activity arrives', () => {
+it('offers a collapsed read-only checklist from an idle session, without a running spinner', () => {
+  restoreSessionTodosFromSnapshot(
+    'owner',
+    {
+      revision: 3,
+      todos: [
+        { id: 'one', content: 'Already done', status: 'completed' },
+        { id: 'two', content: 'Still open', status: 'in_progress' }
+      ]
+    },
+    false
+  )
+  render(stack())
+
+  const review = screen.getByRole('button', { name: /Previous tasks 1\/2/ })
+  expect(review.getAttribute('aria-expanded')).toBe('false')
+  expect(screen.queryByText('Still open')).toBeNull()
+  fireEvent.click(review)
+  expect(screen.getByText('Still open')).toBeTruthy()
+  expect(screen.queryByLabelText('Running')).toBeNull()
+})
+
+it('keeps unfinished todos open and other groups closed as activity arrives', () => {
   $todosBySession.set({ owner: [{ id: 'todo', content: 'Visible todo', status: 'in_progress' }] })
   $goalsBySession.set({ owner: { status: 'active', title: 'Hidden legacy goal', updatedAt: 1 } })
   $backgroundStatusBySession.set({
@@ -68,6 +91,18 @@ it('auto-expands only todos and keeps other groups closed as activity arrives', 
   expect(screen.getByText('Progress arrived')).toBeTruthy()
   view.rerender(stack(false))
   expect(screen.getByText('Worker task')).toBeTruthy()
+})
+
+it('keeps the task list open until every task is complete', () => {
+  $todosBySession.set({ owner: [{ id: 'todo', content: 'Finished todo', status: 'completed' }] })
+  const view = render(stack())
+
+  const header = screen.getByRole('button', { name: /Tasks 1\/1/ })
+  expect(header.getAttribute('aria-expanded')).toBe('false')
+  expect(screen.queryByText('Finished todo')).toBeNull()
+
+  view.rerender(stack(true))
+  expect(screen.queryByText('Finished todo')).toBeNull()
 })
 
 it('starts structured goals collapsed and preserves manual queue expansion when parked', () => {

@@ -14,6 +14,33 @@ export const themedBody = "font-mondwest normal-case";
 /** Mondwest brand chrome — uppercase section headers and nav labels. */
 export const themedChrome = "font-mondwest text-display";
 
+const SYDNEY_TZ = "Australia/Sydney";
+
+/** Australia/Sydney stamp: dd:mm:yy hh:mm:ss. */
+export function formatSydneyStamp(ms: number): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: SYDNEY_TZ,
+      year: "2-digit",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(new Date(ms))
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  ) as Record<string, string>;
+  return `${parts.day}:${parts.month}:${parts.year} ${parts.hour}:${parts.minute}:${parts.second}`;
+}
+
+/** Session-list last-active clock (Sydney). */
+export function sessionListTime(ts: number): string {
+  return formatSydneyStamp(ts * 1000);
+}
+
 /** Relative time from a Unix epoch timestamp (seconds). */
 export function timeAgo(ts: number): string {
   const delta = Date.now() / 1000 - ts;
