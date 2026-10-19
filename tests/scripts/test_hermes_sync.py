@@ -223,3 +223,16 @@ def test_untracked_symlinks_and_venvs_are_never_committed(world):
     tracked = git(world["live"], "ls-files").split()
     assert "real.py" in tracked and "venv" not in tracked
     assert not any(t.startswith("node_modules") for t in tracked)
+
+
+def test_a_meaningful_commit_checks_upstream_even_inside_the_timer_throttle(world):
+    run_sync(world)  # first run records last_upstream_check
+    commit_file(world["seed"], "shared.py", "VALUE = 3\n", "fresh upstream commit")
+    git(world["seed"], "push", "-q", "origin", "main")
+    world["mod"].set_status("agent", last_upstream_check=world["mod"].now() - 3600)  # 1h ago, throttle is 6h
+    idle = world["mod"].sync_repo(world["cfg"], world["repo_cfg"], "timer", False, False, False)
+    assert idle["upstream"] == "throttled"
+    (world["live"] / "app.py").write_text("print('meaningful edit')\n")
+    changed = world["mod"].sync_repo(world["cfg"], world["repo_cfg"], "session", False, False, False)
+    assert changed["commit"] == "committed" and changed["upstream"] == "merged"
+    assert (world["live"] / "shared.py").read_text() == "VALUE = 3\n"

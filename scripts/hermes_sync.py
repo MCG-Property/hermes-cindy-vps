@@ -559,13 +559,20 @@ def prune_tags(git: Git, keep: int = 8) -> None:
 # --------------------------------------------------------------------------- upstream / push / services
 
 
-def upstream_step(git: Git, repo_cfg: dict[str, Any], force: bool, cfg: dict[str, Any]) -> str:
+def upstream_step(git: Git, repo_cfg: dict[str, Any], force: bool, cfg: dict[str, Any],
+                  committed: bool = False) -> str:
+    """Timer-only runs check upstream every ``upstream_min_interval_h`` (6h); a run that just committed a
+    meaningful local change checks again once ``upstream_on_commit_min_interval_min`` (30 min) has passed, so
+    every push-worthy change is rebased onto the latest public commit without a merge storm."""
     name = repo_cfg["name"]
     up = repo_cfg.get("upstream")
     if not up:
         return "none"
     state = get_state(name)
     min_h = float(repo_cfg.get("upstream_min_interval_h", cfg.get("upstream_min_interval_h", 6)))
+    if committed:
+        min_h = min(min_h, float(repo_cfg.get("upstream_on_commit_min_interval_min",
+                                              cfg.get("upstream_on_commit_min_interval_min", 30))) / 60)
     if not force and now() - float(state.get("last_upstream_check", 0)) < min_h * 3600 \
             and not state.get("upstream_retry"):
         return "throttled"
@@ -799,7 +806,7 @@ def sync_repo(cfg: dict[str, Any], repo_cfg: dict[str, Any], trigger: str, force
             result["result"] = "busy-files"
             return result
         if repo_cfg["kind"] == "agent" and not no_upstream:
-            result["upstream"] = upstream_step(git, repo_cfg, force, cfg)
+            result["upstream"] = upstream_step(git, repo_cfg, force, cfg, committed=(outcome == "committed"))
         result["push"] = push_step(git, repo_cfg, cfg)
         if repo_cfg["kind"] == "agent":
             result["restart"] = restart_step(git, repo_cfg, cfg)
