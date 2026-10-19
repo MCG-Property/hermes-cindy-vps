@@ -76,6 +76,9 @@ SECRET_PATH_RE = re.compile(
     r"(^|/)(\.env(\..*)?|auth\.json|auth\.lock|.*\.pem|id_(rsa|ed25519)(\.pub)?|"
     r".*(token|secret|credential)s?\.json|.*client_secret.*)$", re.I)
 ALLOW_MARK = "hermes-sync: allow"
+AGENT_NEVER = ["venv", "venv/*", ".venv", ".venv/*", "node_modules", "node_modules/*", "*/node_modules", "*/node_modules/*",
+               "__pycache__", "*/__pycache__", "*/__pycache__/*", "*.pyc", ".pytest_cache*", ".mypy_cache*",
+               ".ruff_cache*", "release/*", "apps/desktop/release*", "apps/desktop/dist*", "*.egg-info", "*.egg-info/*"]
 
 
 def now() -> float:
@@ -322,6 +325,9 @@ def commit_step(git: Git, repo_cfg: dict[str, Any], trigger: str, force: bool) -
     for xy, path in items:
         if xy.strip() == "!!":
             continue
+        if xy == "??" and repo_cfg["kind"] == "agent":
+            if (git.path / path.rstrip("/")).is_symlink() or is_churn(path, AGENT_NEVER):
+                continue  # untracked symlinks (venv -> .venv), venvs, caches and build output are never code
         if path.endswith("/") and (git.path / path / ".git").exists():  # nested repo: never commit a gitlink
             try:
                 with exclude_file.open("a", encoding="utf-8") as fh:

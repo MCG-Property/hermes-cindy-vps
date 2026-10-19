@@ -212,3 +212,14 @@ def test_home_repo_takes_a_daily_full_snapshot(world):
     result = mod.sync_repo(world["cfg"], repo_cfg, "test", True, False, False)
     assert result["commit"] == "committed"  # first run: a full snapshot is due
     assert git(world["tmp"], "--git-dir", str(home_remote), "show", "main:state.db") == "changed runtime state"
+
+
+def test_untracked_symlinks_and_venvs_are_never_committed(world):
+    os.symlink(".venv", world["live"] / "venv")
+    (world["live"] / "node_modules" / "pkg").mkdir(parents=True)
+    (world["live"] / "node_modules" / "pkg" / "index.js").write_text("x\n")
+    (world["live"] / "real.py").write_text("y = 1\n")
+    run_sync(world)
+    tracked = git(world["live"], "ls-files").split()
+    assert "real.py" in tracked and "venv" not in tracked
+    assert not any(t.startswith("node_modules") for t in tracked)
