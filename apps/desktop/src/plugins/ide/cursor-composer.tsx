@@ -180,7 +180,7 @@ export function CursorComposer(p: Props) {
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="grid size-7 shrink-0 place-items-center rounded-full bg-white/10 text-(--ui-text-secondary) hover:bg-white/15 hover:text-foreground" title="Add context" type="button">
+              <button aria-label="Add context" className="grid size-7 shrink-0 place-items-center rounded-full bg-white/10 text-(--ui-text-secondary) hover:bg-white/15 hover:text-foreground" type="button">
                 <Codicon name="add" size="0.9rem" />
               </button>
             </DropdownMenuTrigger>
@@ -243,10 +243,10 @@ export function CursorComposer(p: Props) {
             </DropdownMenuContent>
           </DropdownMenu>
           <button
+            aria-label={p.busy ? 'Stop' : hasText ? 'Send' : listening ? 'Stop dictation' : 'Voice input'}
             className={cn('grid size-8 shrink-0 place-items-center rounded-full text-[#151515] transition-opacity hover:opacity-90', listening ? 'bg-red-400' : 'bg-[#f2f2f2]')}
             onClick={p.busy ? p.onStop : hasText || !hasMic ? send : toggleMic}
             style={p.skin.id === 'claude' || p.skin.id === 'opencode' ? { background: p.accent, color: '#151515' } : undefined}
-            title={p.busy ? 'Stop' : hasText ? 'Send' : listening ? 'Stop dictation' : 'Voice input'}
             type="button"
           >
             <Codicon name={p.busy ? 'debug-stop' : hasText || !hasMic ? 'arrow-up' : 'mic-filled'} size="0.9rem" />

@@ -10,7 +10,7 @@ import { $paneStates } from '@/store/panes'
 
 import { $terminalTakeover } from '../store'
 
-import { stabilizeOverlayRect, type OverlayRect } from './overlay-rect'
+import { type OverlayRect, stabilizeOverlayRect } from './overlay-rect'
 import { ensureTerminal, restorePersistedTerminalPane } from './terminals'
 import { TerminalWorkspace } from './workspace'
 

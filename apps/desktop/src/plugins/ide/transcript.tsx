@@ -92,14 +92,14 @@ function CursorTurn({ busy, onApply, onFork, onLink, turn }: { busy: boolean; on
       {turn.error ? <div className="my-1 text-(--ui-error,#ff4f5f)">{turn.error}</div> : null}
       {!busy && turn.text ? (
         <div className="mt-1 flex items-center gap-0.5 text-(--ui-text-tertiary)">
-          <button className="grid size-7 place-items-center rounded-md hover:bg-(--chrome-action-hover) hover:text-foreground" title="Good response" type="button">
+          <button aria-label="Good response" className="grid size-7 place-items-center rounded-md hover:bg-(--chrome-action-hover) hover:text-foreground" type="button">
             <Codicon name="thumbsup" size="0.85rem" />
           </button>
-          <button className="grid size-7 place-items-center rounded-md hover:bg-(--chrome-action-hover) hover:text-foreground" title="Bad response" type="button">
+          <button aria-label="Bad response" className="grid size-7 place-items-center rounded-md hover:bg-(--chrome-action-hover) hover:text-foreground" type="button">
             <Codicon name="thumbsdown" size="0.85rem" />
           </button>
           <CopyButton className="size-7" text={turn.text} />
-          <button className="grid size-7 place-items-center rounded-md hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={onFork} title="Fork into a new chat" type="button">
+          <button aria-label="Fork into a new chat" className="grid size-7 place-items-center rounded-md hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={onFork} type="button">
             <Codicon name="repo-forked" size="0.85rem" />
           </button>
           <span className="ml-2 text-[0.8rem]">{ago(turn.ts)} ago</span>

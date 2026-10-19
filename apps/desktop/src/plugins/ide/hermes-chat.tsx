@@ -60,7 +60,7 @@ export function HermesChat({ onClose }: { onClose: () => void }) {
         <span className="text-[0.84rem] font-medium">Hermes</span>
         <span className="truncate text-[0.72rem] text-(--ui-text-tertiary)">{repo ? repoName(repo) : 'no repository'}</span>
         <span className="flex-1" />
-        <button className="grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={onClose} title="Hide chat" type="button">
+        <button aria-label="Hide chat" className="grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={onClose} type="button">
           <Codicon name="close" size="0.85rem" />
         </button>
       </div>

@@ -52,8 +52,8 @@ export function TerminalWorkspace({ onAddSelectionToChat }: TerminalWorkspacePro
         ) : (
           <TerminalInstance
             active={term.id === activeId}
-            cwd={term.cwd}
             cursorChatId={term.cursorChatId}
+            cwd={term.cwd}
             id={term.id}
             key={term.id}
             onAddSelectionToChat={onAddSelectionToChat}

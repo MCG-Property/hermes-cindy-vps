@@ -27,7 +27,7 @@ PRs #9850, #9934, #7536):
 import asyncio
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -677,7 +677,7 @@ async def test_startup_auto_resume_freshness_survives_spring_forward(monkeypatch
         marked = datetime(2026, 3, 8, 1, 50)
         now = datetime(2026, 3, 8, 3, 10)
         if aware_marker:
-            marked = datetime.fromtimestamp(marked.timestamp(), tz=timezone.utc)
+            marked = datetime.fromtimestamp(marked.timestamp(), tz=UTC)
 
         class _FrozenDatetime(datetime):
             @classmethod
@@ -980,6 +980,7 @@ async def test_warmup_disabled_by_nonpositive_timeout(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skip(reason="fork policy: restart/shutdown lifecycle notices are replaced by the post-boot GATEWAY HEALTHY receipt")
 @pytest.mark.asyncio
 async def test_restart_notifies_home_channel_even_without_active_sessions():
     runner, adapter = make_restart_runner()
@@ -996,6 +997,7 @@ async def test_restart_notifies_home_channel_even_without_active_sessions():
     assert "restarting" in adapter.sent[0] and "Send any message" in adapter.sent[0]
 
 
+@pytest.mark.skip(reason="fork policy: restart/shutdown lifecycle notices are replaced by the post-boot GATEWAY HEALTHY receipt")
 @pytest.mark.asyncio
 async def test_restart_home_channel_notification_not_deduped_across_threads():
     runner, adapter = make_restart_runner()
@@ -1307,7 +1309,6 @@ async def test_startup_restore_gate_releases_when_boot_path_send_hangs(
 
     async def never_returns(*_args, **_kwargs):
         await hung.wait()
-        return None
 
     runner._send_restart_notification = never_returns
     runner._claim_pending_obligations = AsyncMock(return_value=[])

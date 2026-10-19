@@ -237,11 +237,13 @@ test('buildInteractiveSshArgs single-quotes a cwd with quotes safely', () => {
 
 test('buildInteractiveSshArgs wraps a persisted pane in a named tmux session', () => {
   const conn = { user: 'me', host: 'box', port: 22, keyPath: '', controlPath: '/tmp/x.sock' }
+
   const args = buildInteractiveSshArgs(conn, '/home/me', 15000, undefined, {
     persistKey: 'term-one',
     resumeOnCreate: true,
     cursorChatId: 'chat-1'
   })
+
   const remoteCmd = args[args.length - 1]
 
   assert.match(remoteCmd, /HERMES_TERM='h-term-one'/)
@@ -1191,10 +1193,12 @@ test('buildInteractiveSshArgs inserts -- before the destination', () => {
 
 test('buildInteractiveSshArgs wraps a persisted pane in a named Sydney tmux session', () => {
   const conn = { user: 'me', host: 'box', port: 22, keyPath: '', controlPath: '/tmp/x.sock' }
+
   const args = buildInteractiveSshArgs(conn, '/home/me', 15000, undefined, {
     persistKey: 'term-one',
     resumeOnCreate: true
   })
+
   const remoteCmd = args[args.length - 1]
   assert.match(remoteCmd, /HERMES_TERM='h-term-one'/)
   assert.match(remoteCmd, /Australia\/Sydney/)
@@ -1485,6 +1489,28 @@ test('withRemoteTimeout kills a hung probe remotely instead of orphaning it (#11
 
     assert.equal(grandStrays.trim(), '', 'watchdog killed the launcher’s grandchild too')
   }
+})
+
+test('exec wraps POSIX payloads in sh -c so a fish login shell never parses them', async () => {
+  const spawnFn = scriptedSpawn((args: any) =>
+    args.at(-1) === 'uname -s' ? { code: 0, stdout: 'Linux\n' } : { code: 0, stdout: 'OK\n' }
+  )
+
+  const conn = new SshConnection({ host: 'box', user: 'me' }, { spawnFn, controlDir: '/tmp/d' })
+  await conn.exec('help="$(true)"; echo "${X:-y}"')
+  const cmd = spawnFn.calls[1].at(-1)
+  assert.match(cmd, /^sh -c '/)
+  assert.match(cmd, /help="\$\(true\)"/)
+})
+
+test('exec leaves Windows PowerShell payloads unwrapped', async () => {
+  const spawnFn = scriptedSpawn((args: any) =>
+    args.at(-1) === 'uname -s' ? { code: 1, stderr: 'uname: command not found' } : { code: 0 }
+  )
+
+  const conn = new SshConnection({ host: 'box', user: 'me' }, { spawnFn, controlDir: '/tmp/d' })
+  await conn.exec('powershell.exe -NoProfile -Command "echo hi"')
+  assert.equal(spawnFn.calls[1].at(-1), 'powershell.exe -NoProfile -Command "echo hi"')
 })
 
 // #97264: every attempt for one scope/host/identity hashes to the same

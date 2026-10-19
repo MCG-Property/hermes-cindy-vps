@@ -283,6 +283,7 @@ async def test_relay_restart_notification_uses_logical_platform_and_owner(tmp_pa
     assert not notify_path.exists()
 
 
+@pytest.mark.skip(reason="fork policy: restart/shutdown lifecycle notices are replaced by the post-boot GATEWAY HEALTHY receipt")
 @pytest.mark.asyncio
 async def test_send_restart_notification_logs_warning_on_sendresult_failure(
     tmp_path, monkeypatch, caplog
@@ -320,6 +321,7 @@ async def test_send_restart_notification_logs_warning_on_sendresult_failure(
 
 
 
+@pytest.mark.skip(reason="fork policy: restart/shutdown lifecycle notices are replaced by the post-boot GATEWAY HEALTHY receipt")
 @pytest.mark.asyncio
 async def test_shutdown_notifications_use_cached_live_thread_source_when_origin_missing():
     runner, adapter = make_restart_runner()
@@ -340,6 +342,7 @@ async def test_shutdown_notifications_use_cached_live_thread_source_when_origin_
     assert adapter.send.await_args.kwargs == {"metadata": {"thread_id": "topic-7", "_interim_send": True}}
 
 
+@pytest.mark.skip(reason="fork policy: restart/shutdown lifecycle notices are replaced by the post-boot GATEWAY HEALTHY receipt")
 @pytest.mark.asyncio
 async def test_shutdown_home_channel_broadcast_carries_interim_marker():
     """Active-chat and home-channel shutdown sends are interim sends (#98432): a

@@ -193,7 +193,7 @@ export function BrowserTab({ url, onUrl }: { onUrl: (u: string) => void; url: st
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-10 items-center gap-1 px-2">
-        <button className="grid size-7 place-items-center rounded text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={() => onUrl(url)} title="Reload" type="button">
+        <button aria-label="Reload" className="grid size-7 place-items-center rounded text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={() => onUrl(url)} type="button">
           <Codicon name="refresh" size="0.85rem" />
         </button>
         <input
@@ -203,7 +203,7 @@ export function BrowserTab({ url, onUrl }: { onUrl: (u: string) => void; url: st
           placeholder="localhost:3000"
           value={draft}
         />
-        <button className="grid size-7 place-items-center rounded text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={() => url && window.open(url, '_blank')} title="Open in browser" type="button">
+        <button aria-label="Open in browser" className="grid size-7 place-items-center rounded text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)" onClick={() => url && window.open(url, '_blank')} type="button">
           <Codicon name="link-external" size="0.85rem" />
         </button>
       </div>

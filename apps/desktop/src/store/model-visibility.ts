@@ -221,6 +221,7 @@ function expandProviderDefaults(
   // shortlist collapses the picker to the current model.
   const uncapped = slug === 'openrouter' || slug === 'opencode-zen' || slug === 'opencode-go'
   const cap = DEFAULT_VISIBLE_PER_PROVIDER
+
   const defaults = !uncapped && featured.length
     ? families.filter(family => featured.includes(family.id))
     : cap

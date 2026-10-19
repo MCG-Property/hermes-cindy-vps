@@ -67,10 +67,10 @@ export function Composer({ agent, busy, contextLabel, hint, mode, onMode, onSend
 
   const send = (
     <button
+      aria-label={busy ? 'Stop (Esc)' : 'Send (Enter)'}
       className="grid size-7 shrink-0 place-items-center rounded-full text-(--ui-bg-primary,#151515) transition-opacity hover:opacity-90"
       onClick={busy ? onStop : submit}
       style={{ background: agent === 'cursor' || agent === 'hermes' ? '#f2f2f2' : accent }}
-      title={busy ? 'Stop (Esc)' : 'Send (Enter)'}
       type="button"
     >
       <Codicon name={busy ? 'debug-stop' : 'arrow-up'} size="0.85rem" />
@@ -78,7 +78,7 @@ export function Composer({ agent, busy, contextLabel, hint, mode, onMode, onSend
   )
 
   const modeBtn = onMode ? (
-    <button className="rounded px-1.5 py-0.5 text-[0.75rem] text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={() => onMode(MODES[(MODES.indexOf(mode) + 1) % MODES.length])} title="Cycle mode" type="button">
+    <button aria-label="Cycle mode" className="rounded px-1.5 py-0.5 text-[0.75rem] text-(--ui-text-tertiary) hover:bg-(--chrome-action-hover) hover:text-foreground" onClick={() => onMode(MODES[(MODES.indexOf(mode) + 1) % MODES.length])} type="button">
       {mode === 'agent' ? (agent === 'claude' ? '⏵⏵ auto-edit' : '∞ Agent') : mode === 'plan' ? (agent === 'claude' ? '⏸ plan mode' : 'Plan') : 'Ask'}
     </button>
   ) : null

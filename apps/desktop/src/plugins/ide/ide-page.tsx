@@ -143,7 +143,7 @@ export function IdePage() {
         })}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-foreground" title="Open a coding-agent panel" type="button">
+            <button aria-label="Open a coding-agent panel" className="grid size-7 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-foreground" type="button">
               <Codicon name="add" size="0.9rem" />
             </button>
           </DropdownMenuTrigger>
@@ -164,18 +164,18 @@ export function IdePage() {
         </DropdownMenu>
         <span className="flex-1" />
         <button
+          aria-label="Show open panels side by side"
           className={cn('flex h-7 items-center gap-1.5 rounded-lg px-2 text-[0.78rem] text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)', layout === 'split' && 'bg-(--ui-bg-quaternary)')}
           onClick={() => $layout.set(layout === 'split' ? 'tabs' : 'split')}
-          title="Show open panels side by side"
           type="button"
         >
           <Codicon name="split-horizontal" size="0.85rem" />
           Split
         </button>
         <button
+          aria-label="Hermes chat"
           className={cn('flex h-7 items-center gap-1.5 rounded-lg px-2 text-[0.78rem] text-(--ui-text-secondary) hover:bg-(--chrome-action-hover)', hermes && 'bg-(--ui-bg-quaternary) text-foreground')}
           onClick={() => $hermesOpen.set(!hermes)}
-          title="Hermes chat"
           type="button"
         >
           <Codicon name="sparkle" size="0.85rem" />

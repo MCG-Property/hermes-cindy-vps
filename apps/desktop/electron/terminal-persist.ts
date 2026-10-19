@@ -16,7 +16,7 @@ export function buildTmuxSydneyClockCommands(): string {
     `tmux set-environment -g TZ ${SYDNEY_TZ} 2>/dev/null || true`,
     `tmux set-option -g status-interval 15 2>/dev/null || true`,
     `tmux set-option -g history-limit 100000 2>/dev/null || true`,
-    `tmux set-option -g status-right '#{?window_bigger,[#{window_offset_x}#,#{window_offset_y}] ,}\"#{=21:pane_title}\" #(TZ=${SYDNEY_TZ} date "+%%H:%%M %%d-%%b-%%y %%Z")' 2>/dev/null || true`
+    `tmux set-option -g status-right '#{?window_bigger,[#{window_offset_x}#,#{window_offset_y}] ,}"#{=21:pane_title}" #(TZ=${SYDNEY_TZ} date "+%%H:%%M %%d-%%b-%%y %%Z")' 2>/dev/null || true`
   ].join('\n')
 }
 

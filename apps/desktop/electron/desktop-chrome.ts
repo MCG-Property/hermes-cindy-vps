@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { validateOverlayCss } from '../src/lib/desktop-chrome-css'
+
 import { ensureDir } from './desktop-plugins-root'
 
 export { validateOverlayCss }

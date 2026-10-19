@@ -1,13 +1,14 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { ChromeSlot, CHROME_SLOTS_AREA } from './chrome-slot'
+import { CHROME_SLOTS_AREA, ChromeSlot } from './chrome-slot'
 import { registry } from './registry'
 
 const disposers: Array<() => void> = []
 
 afterEach(() => {
   cleanup()
+
   for (const dispose of disposers.splice(0)) {
     dispose()
   }

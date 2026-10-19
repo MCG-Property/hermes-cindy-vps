@@ -73,7 +73,7 @@ export function CodexApp({ id, visible }: { id: string; visible: boolean }) {
   }
 
   const rail = (icon: string, title: string, onClick?: () => void, on?: boolean) => (
-    <button className={cn('grid size-9 place-items-center rounded-xl text-(--ui-text-secondary) hover:bg-white/10 hover:text-foreground', on && 'bg-white/90 text-black hover:bg-white')} key={icon} onClick={onClick} title={title} type="button">
+    <button aria-label={title} className={cn('grid size-9 place-items-center rounded-xl text-(--ui-text-secondary) hover:bg-white/10 hover:text-foreground', on && 'bg-white/90 text-black hover:bg-white')} key={icon} onClick={onClick} type="button">
       <Codicon name={icon} size="1.05rem" />
     </button>
   )
@@ -221,7 +221,7 @@ export function CodexApp({ id, visible }: { id: string; visible: boolean }) {
                       </DropdownMenuContent>
                     </DropdownMenu>
                     <IconBtn title="Dictate"><Codicon name="mic" size="1rem" /></IconBtn>
-                    <button className="grid size-9 place-items-center rounded-full bg-[#2f6fe4] text-white hover:opacity-90" onClick={a.session.busy ? a.session.stop : submit} title={a.session.busy ? 'Stop' : text.trim() ? 'Send' : 'Voice'} type="button">
+                    <button aria-label={a.session.busy ? 'Stop' : text.trim() ? 'Send' : 'Voice'} className="grid size-9 place-items-center rounded-full bg-[#2f6fe4] text-white hover:opacity-90" onClick={a.session.busy ? a.session.stop : submit} type="button">
                       <Codicon name={a.session.busy ? 'debug-stop' : text.trim() ? 'arrow-up' : 'pulse'} size="1rem" />
                     </button>
                   </div>

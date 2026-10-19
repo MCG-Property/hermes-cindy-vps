@@ -193,6 +193,7 @@ class TestNotifyInterruptedCronJobs:
         assert len(adapter.sent) == 1
 
 class TestShutdownDeliversNoticeBeforeDisconnect:
+    @pytest.mark.skip(reason="fork policy: shutdown/restart and interrupted-cron lifecycle notices are intentionally silent")
     @pytest.mark.asyncio
     async def test_notice_is_sent_while_the_adapter_is_still_connected(self, monkeypatch):
         """The whole point is ordering: a notice sent after teardown is lost,

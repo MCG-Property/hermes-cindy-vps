@@ -35,30 +35,38 @@ export interface SpendHistoryRow {
 }
 
 function money(value: number | undefined): string {
-  if (value == null || Number.isNaN(value)) return '$—'
+  if (value == null || Number.isNaN(value)) {return '$—'}
+
   return `$${value.toFixed(value >= 1 ? 2 : 4)}`.replace(/(\.\d{2})\d+/, '$1')
 }
 
 function formatMoney(value: number | undefined): string {
-  if (value == null || Number.isNaN(value)) return '$—'
-  if (value === 0) return '$0.00'
-  if (value < 0.01) return `$${value.toFixed(4)}`
+  if (value == null || Number.isNaN(value)) {return '$—'}
+
+  if (value === 0) {return '$0.00'}
+
+  if (value < 0.01) {return `$${value.toFixed(4)}`}
+
   return `$${value.toFixed(2)}`
 }
 
 function formatCountdown(seconds: number | undefined, over: boolean): string {
-  if (!over) return 'paid now'
+  if (!over) {return 'paid now'}
   const s = Math.max(0, Math.round(seconds || 0))
   const h = Math.floor(s / 3600)
   const m = Math.floor((s % 3600) / 60)
   const r = s % 60
-  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`
+
+  if (h > 0) {return `${h}h ${String(m).padStart(2, '0')}m`}
+
   return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`
 }
 
 function toneClass(over: boolean, hour: number | undefined, limit: number | undefined): string {
-  if (over) return 'text-destructive hover:text-destructive'
-  if (hour != null && limit && hour / limit >= 0.7) return 'text-amber-600 hover:text-amber-600'
+  if (over) {return 'text-destructive hover:text-destructive'}
+
+  if (hour != null && limit && hour / limit >= 0.7) {return 'text-amber-600 hover:text-amber-600'}
+
   return 'text-foreground/80 hover:text-foreground'
 }
 
@@ -83,35 +91,42 @@ export function useSpendTrackerStatusbarItem(
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
-    if (!shown) return
+    if (!shown) {return}
     let cancelled = false
     let timer: number | null = null
 
     const poll = async () => {
       try {
         const next = (await requestGateway('spend.snapshot', { session_id: sessionId })) as SpendSnapshot
-        if (!cancelled) setSpend(next)
+
+        if (!cancelled) {setSpend(next)}
       } catch {
-        if (!cancelled) setSpend(prev => prev)
+        if (!cancelled) {setSpend(prev => prev)}
       }
-      if (!cancelled) timer = window.setTimeout(() => void poll(), POLL_MS)
+
+      if (!cancelled) {timer = window.setTimeout(() => void poll(), POLL_MS)}
     }
 
     void poll()
     const tick = window.setInterval(() => setNow(Date.now()), 1000)
+
     return () => {
       cancelled = true
-      if (timer !== null) window.clearTimeout(timer)
+
+      if (timer !== null) {window.clearTimeout(timer)}
       window.clearInterval(tick)
     }
   }, [requestGateway, sessionId, shown])
 
   const resetIn = useMemo(() => {
-    if (!spend?.over_limit) return 0
+    if (!spend?.over_limit) {return 0}
+
     if (spend.reset_at) {
       const until = Date.parse(spend.reset_at) - now
-      if (!Number.isNaN(until)) return Math.max(0, until / 1000)
+
+      if (!Number.isNaN(until)) {return Math.max(0, until / 1000)}
     }
+
     return Math.max(0, (spend.reset_in_s || 0) - 0)
   }, [now, spend])
 

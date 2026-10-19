@@ -152,7 +152,7 @@ export function OpenCodeApp({ id, visible }: { id: string; visible: boolean }) {
         <Pick className="ml-1" items={(a.models.length ? a.models : [model]).map(m => ({ id: m, label: m }))} label={<span className="flex items-center gap-1.5"><span className="grid size-4 place-items-center rounded bg-white/15"><Codicon name="chip" size="0.65rem" /></span>{model || 'Select model'}</span>} onPick={a.setModel} />
         <Pick className="ml-1" items={['Low', 'Medium', 'High'].map(e => ({ id: e, label: e }))} label={a.effort} onPick={a.setEffort} />
         <span className="flex-1" />
-        <button className="grid size-9 place-items-center rounded-lg bg-[#2a2a2a] text-(--ui-text-secondary) hover:bg-[#333] hover:text-foreground" onClick={a.session.busy ? a.session.stop : submit} title={a.session.busy ? 'Stop' : 'Send'} type="button">
+        <button aria-label={a.session.busy ? 'Stop' : 'Send'} className="grid size-9 place-items-center rounded-lg bg-[#2a2a2a] text-(--ui-text-secondary) hover:bg-[#333] hover:text-foreground" onClick={a.session.busy ? a.session.stop : submit} type="button">
           <Codicon name={a.session.busy ? 'debug-stop' : 'arrow-up'} size="1rem" />
         </button>
       </div>
@@ -196,7 +196,7 @@ export function OpenCodeApp({ id, visible }: { id: string; visible: boolean }) {
             ))}
             <IconBtn onClick={addTab} title="New session"><Codicon name="add" size="0.95rem" /></IconBtn>
           </div>
-          <button className="relative grid size-8 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-white/10" onClick={() => (pane ? setPane(false) : openPane('changes'))} title="Review and files" type="button">
+          <button aria-label="Review and files" className="relative grid size-8 place-items-center rounded-lg text-(--ui-text-secondary) hover:bg-white/10" onClick={() => (pane ? setPane(false) : openPane('changes'))} type="button">
             <Codicon name="layout-sidebar-right" size="0.95rem" />
             <span className="absolute top-1 right-1 size-1.5 rounded-full bg-emerald-500" />
           </button>
