@@ -42,6 +42,13 @@ from typing import Any
 # --------------------------------------------------------------------------- paths / config
 
 
+try:  # system services run without HOME; git then misses ~/.gitconfig (credential helper, identity)
+    import pwd
+    os.environ.setdefault("HOME", pwd.getpwuid(os.getuid()).pw_dir)
+except (ImportError, KeyError):
+    pass
+
+
 def base_home() -> Path:
     """The HERMES_HOME that owns sync.json (a profile's home resolves to its parent)."""
     env = os.environ.get("HERMES_SYNC_HOME") or os.environ.get("HERMES_HOME")
